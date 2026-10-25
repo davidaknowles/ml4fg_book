@@ -191,16 +191,14 @@ Own figures, no permission needed but confirm:
 
 ## 4. Incomplete references
 
-These entries carry `note = {check}`, which currently prints in the PDF bibliography. Fix the entry and remove the note.
+All bib entries were checked against PubMed, DBLP, Crossref and bioRxiv (October 2026); every `note = {check}` is resolved. Remaining items:
 
-- [ ] **Ch 2:** `rizzino2016` (source taken from slide alt text).
-- [ ] **Ch 3:** `avsec2026` (AlphaGenome; volume and pages).
-- [ ] **Ch 4:** `guerzhoy_video` (year); `nie2018` (pages).
-- [ ] **Ch 5:** `gao2024` (JASA details); `grabski2023` (volume and pages).
-- [ ] **Ch 7:** author lists for `deletang2023`, `nguyen2023`, `nguyen2024`, `smallwood2014`, `lister2009`, `booth2012`, `tahiliani2009`, `yin2017`, `briggs2007`; `botev2024` author list truncated.
-- [ ] **Ch 8:** `mackay1994`.
-- [ ] **Ch 9:** `mostafavi2018` (pages); `ganapathiraju2016` (article number); `reguly2006` (volume, article number); `kemp2006` (pages).
-- [ ] **Ch 10:** `desterro2020` (year); `piovesan2016` (author list, title).
-- [ ] **Ch 12:** `fan2020` (authors, title, volume, pages); `zhou2022pca` (article number); `sasse2023` (pages); `brown2021welch` (volume, pages); `brown2020bimmer`, `brown2023inspre` (preprint details, published versions).
-- [ ] **Ch 13:** entries with "and others" were written from memory beyond the first authors; check volumes and pages.
+- [x] **Ch 2–13:** all `note = {check}` entries resolved (rizzino2016, avsec2026, guerzhoy_video, nie2018, gao2024, grabski2023, ch 7 author lists, mackay1994, ch 9 pages and article numbers, desterro2020, piovesan2016, ch 12 entries).
+- [x] **Ch 13:** "and others" author prefixes, volumes and pages verified.
+- [ ] **Ch 12:** `fan2020` is now the ECCO paper (Fan, Zhu, Song, Peng, Zhou, Bioinformatics 37:296--302, 2021). Confirm it is the slide's source and that it supports "eGenes roughly double from 0 to 60 PEER factors" (text line ~317); the full text was not available to check.
+- [ ] **Ch 10:** `saberi2024` cites bioRxiv v1; later versions are retitled with 14 authors. No journal version yet.
+- [ ] **Unverified in any database:** `mackay1994` (ASHRAE Trans.), `blelloch1990` (CMU tech report), `ghahramani1996`, `minka2005`; pages of `vaswani2017` (5998--6008) and `zaheer2017` (3391--3401) are from the standard citation, not DBLP.
+- [ ] **No year (biber warning):** web resources `wetterstrand`, `tenx_blog` (ch 1), `seurat_pbmc` (ch 5).
+- [ ] **arXiv only:** `gu2023` (Mamba; published at COLM 2024, not in DBLP), `chung2014`, `feng2024`, `botev2024`, `hendrycks2016`, `dumoulin2016`, `ba2016`, `ho2019`.
+- [ ] **Uncited entries:** `murphy2022` (ch 3), `holmes2017` (ch 12), `bishop1999bpca` (ch 12); harmless, as unused entries do not print.
 - [ ] **Uncited mentions:** Otari (ch 10) and AlphaGenome (ch 2) are named in the text without a citation.
