@@ -38,8 +38,10 @@
 \providecommand{\mT}{\mathbf{T}}
 \providecommand{\diag}{\operatorname{diag}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Recurrent neural networks and DNA methylation}
 \label{ch:rnn}
+\chaptertoc
 
 Chapter 6 modelled a sequence of genomic bins with a hidden Markov model (HMM): a chain of discrete hidden states, each emitting an observation, with information passed along the chain by the forward-backward algorithm. Recurrent neural networks (RNNs) are the deep learning counterpart. An RNN also carries a hidden state along a sequence, but the state is a continuous vector, it is updated by a learned nonlinear function, and the whole model is trained end to end by gradient descent. This chapter introduces the basic or ``vanilla'' RNN, shows why it is hard to train on long sequences (the exploding and vanishing gradient problem), and describes the gated architectures that fix it, the gated recurrent unit (GRU) and long short-term memory (LSTM). We then cover bidirectional RNNs and the linear RNNs that underlie several recent DNA language models. The application is DNA methylation, a chemical modification of DNA itself, measured by bisulfite sequencing. We describe DeepCpG, a model that combines a convolutional network on DNA sequence with a bidirectional GRU to impute methylation states in single cells.
 
@@ -269,7 +271,7 @@ The underlying cause is that backpropagation multiplies by the same matrix $\mW_
 \label{sec:gated}
 %======================================================================
 
-The vanilla RNN fails because the backward pass multiplies by the same matrix at every step. Gated architectures fix this by making the step-to-step dependence \emph{data-adaptive}: a learned gate, computed from the current input and state, decides at each position how much of the old state to keep and how much new information to write. Where the gate keeps the old state, the state, and its gradient, pass through nearly unchanged. Historically the long short-term memory (LSTM)~\citep{hochreiter1997} came first and the gated recurrent unit (GRU)~\citep{cho2014} later, as a simplification that performs about as well in practice~\citep{chung2014,jozefowicz2015}. We present the GRU first because it is simpler.
+The vanilla RNN fails because the backward pass multiplies by the same matrix at every step. Gated architectures fix this by making the step-to-step dependence \emph{data-adaptive}: a learned gate, computed from the current input and state, decides at each position how much of the old state to keep and how much new information to write. Where the gate keeps the old state, the state, and its gradient, pass through nearly unchanged. Historically the long short-term memory (LSTM)~\citep{hochreiter1997lstm} came first and the gated recurrent unit (GRU)~\citep{cho2014} later, as a simplification that performs about as well in practice~\citep{chung2014,jozefowicz2015}. We present the GRU first because it is simpler.
 
 \subsection{Gates}
 
@@ -358,7 +360,7 @@ Figure~\ref{fig:gradient_flow} (right) illustrates this with a GRU of the same s
 
 \subsection{Long short-term memory}
 
-The LSTM~\citep{hochreiter1997,gers2000} separates two roles that the GRU state plays. Besides the hidden state $\vh_t\in\R^K$, which is the output at each position and acts as short-term memory, it carries a \emph{cell state} $\vc_t\in\R^K$ intended as long-term memory (the name has nothing to do with biological cells). With $\vphi_t$ again the concatenation of $\vx_t$ and $\vh_{t-1}$, the LSTM computes three gates and a candidate,
+The LSTM~\citep{hochreiter1997lstm,gers2000} separates two roles that the GRU state plays. Besides the hidden state $\vh_t\in\R^K$, which is the output at each position and acts as short-term memory, it carries a \emph{cell state} $\vc_t\in\R^K$ intended as long-term memory (the name has nothing to do with biological cells). With $\vphi_t$ again the concatenation of $\vx_t$ and $\vh_{t-1}$, the LSTM computes three gates and a candidate,
 \begin{align}
   \vi_t &= \sigma\left(\mW_i\vphi_t+\vbias_i\right) && \text{(input gate)},\\
   \vf_t &= \sigma\left(\mW_f\vphi_t+\vbias_f\right) && \text{(forget gate)},\\

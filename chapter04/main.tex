@@ -19,6 +19,14 @@
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
+\usepackage{etoc}
+% Contents list printed under each chapter heading (sections and subsections).
+\newcommand{\chaptertoc}{%
+  \begingroup
+  \etocsettocstyle{\noindent\rule{\linewidth}{0.4pt}\par\smallskip\noindent\textbf{Contents of this chapter}\par\smallskip}{\noindent\rule{\linewidth}{0.4pt}\par\bigskip}%
+  \etocsetnexttocdepth{subsection}%
+  \localtableofcontents
+  \endgroup}
 \graphicspath{{figures/}}
 
 \setcounter{chapter}{3}

@@ -46,8 +46,10 @@
 \providecommand{\diag}{\operatorname{diag}}
 \providecommand{\Gam}{\operatorname{Gamma}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Matrix factorization}
 \label{ch:matfact}
+\chaptertoc
 
 Chapters 5 and 6 introduced two kinds of unsupervised model with a discrete latent variable: mixture models, in which each data point belongs to one of $K$ clusters, and hidden Markov models, in which the cluster assignments of neighbouring positions are dependent. This chapter covers the other large class of unsupervised models, \emph{matrix factorization}, in which each data point is a weighted combination of $K$ underlying \emph{factors} rather than a member of a single cluster. We start from factor analysis, a probabilistic model from which probabilistic principal components analysis (PCA), classical PCA and independent components analysis (ICA) follow as special or limiting cases. We then cover non-negative matrix factorization (NMF) and autoencoders, the deep learning counterpart of matrix factorization. Along the way we meet several genomic applications: integrating multiple omic data types measured on the same patients, the genetic map of Europe recovered by PCA, integrating single-cell datasets from different technologies, and estimating the cell type composition of bulk tumour samples.
 

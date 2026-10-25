@@ -35,8 +35,10 @@
 \providecommand{\indep}{\perp\!\!\!\perp}
 \providecommand{\KL}{\mathrm{KL}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Hidden Markov models}
 \label{ch:hmm}
+\chaptertoc
 
 Chapter 5 introduced clustering and mixture models: each data point is assigned to one of $K$ latent groups, and the groups are learned from the data without labels. In many genomic problems the data points are not exchangeable. They are positions along a chromosome, and nearby positions tend to belong to the same group: a gene body spans thousands of nucleotides, a promoter sits next to the start of a gene, and a repressed domain can extend over hundreds of kilobases. A \emph{hidden Markov model} (HMM) is a mixture model in which the cluster assignments of neighbouring positions are dependent, through a Markov chain along the sequence.
 

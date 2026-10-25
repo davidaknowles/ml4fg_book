@@ -43,8 +43,10 @@
 \providecommand{\BetaD}{\operatorname{Beta}}
 \providecommand{\Pois}{\operatorname{Poisson}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Rare variants}
 \label{ch:rare_variants}
+\chaptertoc
 
 Chapters 11 and 12 tested genetic variants one at a time for association with a disease, a quantitative trait or a molecular phenotype such as gene expression. That approach works for common variants, those whose minor allele is carried by at least a few percent of people. Most human genetic variants are rare, however, and some of the variants with the largest effects on disease are rare because natural selection keeps them that way. For variants carried by a handful of people, and for \emph{de novo} mutations, which are present in a single individual, a single-variant test has little or no power.
 
@@ -351,7 +353,7 @@ Under $H_0$, $\vS\sim\Normal(\mathbf{0},\sigma^2\boldsymbol{\Omega})$ with $\bol
 \begin{equation}
   \frac{Q_\rho}{\sigma^2} = \vz^\top\boldsymbol{\Omega}^{1/2}\mathbf{A}_\rho\boldsymbol{\Omega}^{1/2}\vz = \sum_{k=1}^M \lambda_k u_k^2, \qquad u_k\overset{\text{iid}}{\sim}\Normal(0,1),
 \end{equation}
-where $\lambda_1,\dots,\lambda_M\geq 0$ are the eigenvalues of $\boldsymbol{\Omega}^{1/2}\mathbf{A}_\rho\boldsymbol{\Omega}^{1/2}$ and the second equality follows by rotating $\vz$ into its eigenbasis. The null distribution of $Q_\rho/\sigma^2$ is therefore a weighted sum of independent $\chi^2_1$ variables. Its tail probability has no closed form but can be computed by numerically inverting the characteristic function~\citep{davies1980} or approximated by matching moments to a scaled $\chi^2$~\citep{liu2009}. In practice $\sigma^2$ is replaced by its estimate under the null. For burden ($\rho=1$) the matrix $\mathbf{A}_1=\vw\vw^\top$ has rank one, a single eigenvalue $\lambda_1=\vw^\top\boldsymbol{\Omega}\vw$ is non-zero, and we recover the $\chi^2_1$ test of Section~\ref{sec:burden}.
+where $\lambda_1,\dots,\lambda_M\geq 0$ are the eigenvalues of $\boldsymbol{\Omega}^{1/2}\mathbf{A}_\rho\boldsymbol{\Omega}^{1/2}$ and the second equality follows by rotating $\vz$ into its eigenbasis. The null distribution of $Q_\rho/\sigma^2$ is therefore a weighted sum of independent $\chi^2_1$ variables. Its tail probability has no closed form but can be computed by numerically inverting the characteristic function~\citep{davies1980} or approximated by matching moments to a scaled $\chi^2$~\citep{liu2009chisq}. In practice $\sigma^2$ is replaced by its estimate under the null. For burden ($\rho=1$) the matrix $\mathbf{A}_1=\vw\vw^\top$ has rank one, a single eigenvalue $\lambda_1=\vw^\top\boldsymbol{\Omega}\vw$ is non-zero, and we recover the $\chi^2_1$ test of Section~\ref{sec:burden}.
 
 \subsection{Variant weights}
 

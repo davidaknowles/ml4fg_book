@@ -23,4 +23,4 @@ Converting ML4FG lecture decks (`*.pptx`, untracked) into LaTeX chapters (`chapt
 
 ## Building the book
 
-`book/build.sh` builds all chapters into `book/main.pdf` (per-chapter bibliographies). Labels must be unique across chapters. New chapter macros go in `\providecommand` at the chapter top; the book wraps each chapter in a group, so definitions stay local.
+`latexmk -pdf main.tex` in `book/` builds all chapters into one PDF. `book/main.tex` reads each chapter from its folder with `\bookchapter{chapterNN}` and uses biblatex (biber) with a reference section per chapter, while the standalone chapter builds keep natbib/bibtex; chapters must only use natbib-style `\cite`/`\citet`/`\citep`. Labels and bib keys must be unique across chapters (a bib key reused in two chapters must name the same work). Chapter macros go in `\providecommand` at the chapter top; the book keeps each chapter's macros local. Each chapter calls `\chaptertoc` right after its `\chapter`/`\label` lines; it is defined in every `main.tex` preamble.

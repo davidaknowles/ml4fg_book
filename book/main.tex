@@ -1,6 +1,8 @@
-% Full book: builds all chapters with per-chapter bibliographies (chapterbib).
-% Build with ./build.sh (runs bibtex on each chapter's aux file).
+% Full book. Build with: latexmk -pdf main.tex (runs biber).
+% Each chapter is read from its own folder; biblatex starts a new reference
+% section at every \chapter, so each chapter gets its own bibliography.
 \documentclass[11pt]{book}
+\usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{microtype}
@@ -16,10 +18,45 @@
 \usepackage{algpseudocode}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,decorations.pathmorphing,shapes.geometric,fit,3d}
-\usepackage[numbers,sort&compress,sectionbib]{natbib}
-\usepackage{chapterbib}
+\usepackage[backend=biber,style=numeric-comp,natbib=true,refsection=chapter,giveninits=true,maxbibnames=10,url=false,doi=false,isbn=false,safeinputenc]{biblatex}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
+\usepackage{etoc}
+% Contents list printed under each chapter heading (sections and subsections).
+\newcommand{\chaptertoc}{%
+  \begingroup
+  \etocsettocstyle{\noindent\rule{\linewidth}{0.4pt}\par\smallskip\noindent\textbf{Contents of this chapter}\par\smallskip}{\noindent\rule{\linewidth}{0.4pt}\par\bigskip}%
+  \etocsetnexttocdepth{subsection}%
+  \localtableofcontents
+  \endgroup}
+
+% All chapter bibliographies. Keys must name the same work across chapters.
+\addbibresource{../chapter01/chapter01.bib}
+\addbibresource{../chapter02/chapter02.bib}
+\addbibresource{../chapter03/chapter03.bib}
+\addbibresource{../chapter04/chapter04.bib}
+\addbibresource{../chapter05/chapter05.bib}
+\addbibresource{../chapter06/chapter06.bib}
+\addbibresource{../chapter07/chapter07.bib}
+\addbibresource{../chapter08/chapter08.bib}
+\addbibresource{../chapter09/chapter09.bib}
+\addbibresource{../chapter10/chapter10.bib}
+\addbibresource{../chapter11/chapter11.bib}
+\addbibresource{../chapter12/chapter12.bib}
+\addbibresource{../chapter13/chapter13.bib}
+\addbibresource{../chapter14/chapter14.bib}
+
+% \bookchapter{chapterNN}: read the chapter from its folder, with its own figure
+% and input paths, its macros kept local, and its bibliography at the end.
+\makeatletter
+\newcommand{\bookchapter}[1]{%
+  \graphicspath{{../#1/figures/}}%
+  \def\input@path{{../#1/}}%
+  \begingroup
+  \input{../#1/#1}%
+  \printbibliography[heading=subbibintoc,title={References}]%
+  \endgroup}
+\makeatother
 
 \title{Machine Learning for Functional Genomics}
 \author{David A. Knowles}
@@ -28,20 +65,21 @@
 \begin{document}
 \frontmatter
 \maketitle
+\setcounter{tocdepth}{1} % chapters and sections; each chapter lists its subsections
 \tableofcontents
 \mainmatter
-\include{ch01}
-\include{ch02}
-\include{ch03}
-\include{ch04}
-\include{ch05}
-\include{ch06}
-\include{ch07}
-\include{ch08}
-\include{ch09}
-\include{ch10}
-\include{ch11}
-\include{ch12}
-\include{ch13}
-\include{ch14}
+\bookchapter{chapter01}
+\bookchapter{chapter02}
+\bookchapter{chapter03}
+\bookchapter{chapter04}
+\bookchapter{chapter05}
+\bookchapter{chapter06}
+\bookchapter{chapter07}
+\bookchapter{chapter08}
+\bookchapter{chapter09}
+\bookchapter{chapter10}
+\bookchapter{chapter11}
+\bookchapter{chapter12}
+\bookchapter{chapter13}
+\bookchapter{chapter14}
 \end{document}

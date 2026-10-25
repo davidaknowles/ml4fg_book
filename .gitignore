@@ -18,3 +18,5 @@ captions/raw/
 captions/stripped/
 captions/clean/parts/
 book/main.pdf
+*.bcf
+*.run.xml

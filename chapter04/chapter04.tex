@@ -36,8 +36,10 @@
   lyr/.style={font=\scriptsize, anchor=east, text=black!70},
 }
 
+\providecommand{\chaptertoc}{}
 \chapter{Interpreting neural networks}
 \label{ch:interpretation}
+\chaptertoc
 
 The convolutional networks and transformers of Chapters 2 and 3 predict chromatin accessibility, transcription factor binding and gene expression from DNA sequence with high accuracy. Accuracy alone, however, is rarely the end goal in genomics. If a model predicts that a sequence is an active enhancer, we want to know \emph{why}: which nucleotides drive the prediction, which transcription factor motifs they correspond to, and how a mutation at a given position would change the output. This chapter develops methods that answer these questions for a trained network. They assign an importance score to each input feature, for example each nucleotide, for one prediction at a time. We start from the most intuitive approach, perturbing the input and observing the output, and then derive a sequence of increasingly principled methods based on backpropagation: gradients, deconvolutional networks, guided backpropagation, DeepLIFT and integrated gradients. We close with Shapley values, which provide a theoretical framework that connects several of these methods.
 

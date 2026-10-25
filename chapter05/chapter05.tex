@@ -30,8 +30,10 @@
 \providecommand{\mLambda}{\boldsymbol{\Lambda}}
 \providecommand{\KL}{\operatorname{KL}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Unsupervised learning and clustering}
 \label{ch:clustering}
+\chaptertoc
 
 The models in the earlier chapters were all supervised: each training example came with a label or response $y$, and the task was to predict it from the features $\vx$. Much of functional genomics data comes without labels. A single-cell RNA-seq experiment measures the expression of thousands of genes in each of thousands of cells, but nobody tells us which cell is a T cell and which is a monocyte. A cohort of tumour or post-mortem brain samples may contain molecular subtypes of disease that have never been described. This chapter introduces unsupervised learning, the problem of finding structure in $\mX$ alone, through its simplest and most widely used instance, clustering. We develop the Gaussian mixture model, derive the K-means algorithm as a way of fitting it, and then derive the expectation-maximization (EM) algorithm, which gives a ``soft'' version of K-means and recurs throughout the rest of the book. We then cover the clustering methods most used for single-cell data, hierarchical, spectral and graph-based clustering, and finish with the question of whether the clusters we find are real.
 

@@ -40,8 +40,10 @@
 \providecommand{\Cov}{\operatorname{Cov}}
 \providecommand{\logit}{\operatorname{logit}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Genome-wide association studies}
 \label{ch:gwas}
+\chaptertoc
 
 So far this book has mostly modelled molecular measurements of cells: expression, chromatin accessibility, transcription factor binding, methylation. This chapter turns to the other main use of sequencing introduced in Chapter 1, reading the genomes of many individuals and relating the differences between them to traits and diseases. A genome-wide association study (GWAS) tests each of millions of genetic variants for association with a trait. Statistically, a GWAS is little more than millions of small linear or logistic regressions, but it has to deal with three complications that make it interesting from a machine learning point of view: the features (genotypes) are strongly correlated with their neighbours along the genome, the samples (people) are not independent because they share ancestry, and the effects are tiny and numerous. We first describe human genetic variation and how a GWAS is run, then the population genetics that creates correlation between variants, then the statistical tools built on top of GWAS results: linear mixed models for population structure, summary statistics, fine-mapping and LD score regression. We end with an example where the biology of a GWAS association was worked out in detail, the obesity association at the \textit{FTO} locus.
 

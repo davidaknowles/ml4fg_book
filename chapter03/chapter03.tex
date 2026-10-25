@@ -37,8 +37,10 @@
 \providecommand{\mPi}{\boldsymbol{\Pi}}
 \providecommand{\softmax}{\operatorname{softmax}}
 
+\providecommand{\chaptertoc}{}
 \chapter{The chromatin landscape and transformers}
 \label{ch:chromatin}
+\chaptertoc
 
 Almost every cell in the body carries the same genome, yet a neuron, a hepatocyte and a T cell look and behave very differently. The difference lies in which genes each cell expresses, and that in turn is controlled by how the genome is packaged and which parts of it are accessible to the proteins that read it. This chapter has three parts. The first describes the \emph{chromatin landscape}: how DNA is packed into the nucleus, the chemical modifications of the proteins it is wrapped around, the assays that measure these features genome-wide, and the regulatory elements, promoters and enhancers, that they reveal. The second returns to the convolutional neural networks of Chapter 2 and applies them to predict chromatin accessibility from DNA sequence across many cell types at once, and to predict the effects of genetic variants. The third introduces attention and the transformer architecture, which let a model relate positions that are far apart in a sequence, and describes the long-range sequence-to-function models, Enformer and AlphaGenome, built from them. Along the way we meet Hi-C, the assay that measures the three-dimensional folding of the genome, because a transformer trained only on sequence turns out to learn something about that folding.
 

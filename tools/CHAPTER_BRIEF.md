@@ -27,7 +27,7 @@ Repo root: `/Users/daknowles/Dropbox/teaching/2023 slides final/for_book` (git r
 ## Output: `chapterNN/` (NN = two-digit topic number)
 
 Mirror `chapter01/`:
-- `chapterNN.tex`: the chapter (`\chapter{...}\label{ch:<slug>}`). Copy chapter 1's `\providecommand` macro block at the top and add any new macros the same way.
+- `chapterNN.tex`: the chapter (`\chapter{...}`, then `\label{ch:<slug>}`, then `\chaptertoc` on its own lines). Labels and bib keys must not clash with other chapters' unless they name the same thing. Copy chapter 1's `\providecommand` macro block at the top and add any new macros the same way.
 - `chapterNN.bib`: references cited in the chapter (natbib keys, `\citet`/`\citep`). Cite primary papers for methods and datasets. Only include bibliographic details you are confident of; mark any uncertain field with a `note = {check}`.
 - `main.tex`: copy of chapter 1's wrapper with the include and bibliography names changed. Add packages only if needed, and list them in the chapter's header comment.
 - `figures/` and `figures/slides/`, `scripts/make_figures.py`, `README.md` (build steps and a figure provenance table with a permission column, like chapter 1's).

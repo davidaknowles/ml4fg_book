@@ -36,8 +36,10 @@
 \providecommand{\Loss}{\mathcal{L}}
 \providecommand{\vgamma}{\boldsymbol{\gamma}}
 
+\providecommand{\chaptertoc}{}
 \chapter{Deep neural networks and gene regulation}
 \label{ch:cnn}
+\chaptertoc
 
 Chapter 1 developed linear models for predicting a response, such as drug sensitivity, from features, such as gene expression. This chapter has three parts. The first extends those models to deep neural networks, which can represent nonlinear functions and interactions between features, and describes how they are fit: backpropagation to compute gradients and stochastic gradient descent to use them. The second part returns to biology and asks \emph{how} cells control which genes are expressed. A central mechanism is the binding of transcription factors to short DNA sequence patterns called motifs, which can be measured genome-wide with ChIP-seq. The third part brings the two together. The classical model of transcription factor binding, the position weight matrix, turns out to be a single convolutional filter, and stacking such filters with nonlinearities and pooling gives a convolutional neural network (CNN) that predicts binding from DNA sequence.
 
