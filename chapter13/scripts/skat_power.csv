@@ -1,0 +1,25 @@
+signs,frac,test,power
+all risk-increasing,10%,burden,0.341
+all risk-increasing,10%,SKAT,0.744
+all risk-increasing,10%,SKAT-O,0.725
+all risk-increasing,30%,burden,0.422
+all risk-increasing,30%,SKAT,0.471
+all risk-increasing,30%,SKAT-O,0.576
+all risk-increasing,60%,burden,0.559
+all risk-increasing,60%,SKAT,0.206
+all risk-increasing,60%,SKAT-O,0.537
+all risk-increasing,100%,burden,0.791
+all risk-increasing,100%,SKAT,0.153
+all risk-increasing,100%,SKAT-O,0.73
+50% protective,10%,burden,0.082
+50% protective,10%,SKAT,0.745
+50% protective,10%,SKAT-O,0.717
+50% protective,30%,burden,0.023
+50% protective,30%,SKAT,0.441
+50% protective,30%,SKAT-O,0.382
+50% protective,60%,burden,0.011
+50% protective,60%,SKAT,0.158
+50% protective,60%,SKAT-O,0.118
+50% protective,100%,burden,0.011
+50% protective,100%,SKAT,0.104
+50% protective,100%,SKAT-O,0.081
