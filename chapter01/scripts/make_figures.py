@@ -36,7 +36,7 @@ THEME = theme_bw(base_size=10) + theme(
 
 
 def save(p, name, w=5.0, h=3.2):
-    p.save(OUT / name, width=w, height=h, verbose=False)
+    p.save(OUT / name, width=w, height=h, verbose=False, metadata={"CreationDate": None})
 
 
 def contour_paths(xx, yy, zz, levels):
