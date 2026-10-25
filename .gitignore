@@ -16,3 +16,4 @@ chapter*/main.pdf
 # Lecture captions: raw files contain student names; stripped/ is intermediate
 captions/raw/
 captions/stripped/
+captions/clean/parts/
