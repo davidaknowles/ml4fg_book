@@ -123,7 +123,8 @@ The genome is divided into chromosomes, each a long DNA molecule; a human chromo
     \begin{scope}[yshift=-3.6cm]
       \draw[thick] (3.2,0) ellipse (3.6cm and 2.3cm);
       \draw[thick, fill=gray!8] (1.6,-0.2) circle (1.3cm);
-      \node at (0.6,-1.75) {nucleus};
+      \node (nuc) at (3.5,-1.45) {nucleus};
+      \draw (nuc.west) -- (2.66,-0.95);
       \node at (4.4,1.75) {cytoplasm};
       \node at (6.4,-1.9) {cell};
       \draw[decorate, decoration={snake, amplitude=1.5mm, segment length=7mm}] (0.6,-0.7) -- (2.4,-0.8);
