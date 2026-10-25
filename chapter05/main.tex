@@ -1,0 +1,30 @@
+% Standalone wrapper for compiling the chapter on its own.
+% In the full book, copy the package list into the book preamble and \include{chapter05}.
+% \setcounter{chapter}{4} makes the standalone build number this as Chapter 5.
+\documentclass[11pt]{book}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,decorations.pathmorphing,shapes.geometric,fit}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
+\graphicspath{{figures/}}
+
+\begin{document}
+\setcounter{chapter}{4}
+\include{chapter05}
+\bibliographystyle{abbrvnat}
+\bibliography{chapter05}
+\end{document}

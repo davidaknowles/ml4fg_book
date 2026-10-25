@@ -1,0 +1,612 @@
+% Chapter 5: unsupervised learning and clustering.
+% Requires: amsmath, amssymb, bm, graphicx, booktabs, subcaption, algorithm, algpseudocode,
+% tikz (arrows.meta, positioning, calc, decorations.pathreplacing, fit), natbib.
+% Computed figures are produced by scripts/make_figures.py; figures/slides/ holds figures taken from the lecture slides.
+
+\providecommand{\R}{\mathbb{R}}
+\providecommand{\E}{\mathbb{E}}
+\providecommand{\Normal}{\mathcal{N}}
+\providecommand{\argmax}{\operatorname*{arg\,max}}
+\providecommand{\argmin}{\operatorname*{arg\,min}}
+\providecommand{\vy}{\mathbf{y}}
+\providecommand{\vx}{\mathbf{x}}
+\providecommand{\mX}{\mathbf{X}}
+\providecommand{\mI}{\mathbf{I}}
+\providecommand{\vb}{\boldsymbol{\beta}}
+\providecommand{\veps}{\boldsymbol{\epsilon}}
+\providecommand{\vp}{\mathbf{p}}
+\providecommand{\vg}{\mathbf{g}}
+\providecommand{\ind}{\mathbf{1}}
+\providecommand{\vmu}{\boldsymbol{\mu}}
+\providecommand{\vpi}{\boldsymbol{\pi}}
+\providecommand{\vc}{\mathbf{c}}
+\providecommand{\vf}{\mathbf{f}}
+\providecommand{\vu}{\mathbf{u}}
+\providecommand{\mSigma}{\boldsymbol{\Sigma}}
+\providecommand{\mA}{\mathbf{A}}
+\providecommand{\mD}{\mathbf{D}}
+\providecommand{\mL}{\mathbf{L}}
+\providecommand{\mU}{\mathbf{U}}
+\providecommand{\mLambda}{\boldsymbol{\Lambda}}
+\providecommand{\KL}{\operatorname{KL}}
+
+\chapter{Unsupervised learning and clustering}
+\label{ch:clustering}
+
+The models in the earlier chapters were all supervised: each training example came with a label or response $y$, and the task was to predict it from the features $\vx$. Much of functional genomics data comes without labels. A single-cell RNA-seq experiment measures the expression of thousands of genes in each of thousands of cells, but nobody tells us which cell is a T cell and which is a monocyte. A cohort of tumour or post-mortem brain samples may contain molecular subtypes of disease that have never been described. This chapter introduces unsupervised learning, the problem of finding structure in $\mX$ alone, through its simplest and most widely used instance, clustering. We develop the Gaussian mixture model, derive the K-means algorithm as a way of fitting it, and then derive the expectation-maximization (EM) algorithm, which gives a ``soft'' version of K-means and recurs throughout the rest of the book. We then cover the clustering methods most used for single-cell data, hierarchical, spectral and graph-based clustering, and finish with the question of whether the clusters we find are real.
+
+%======================================================================
+\section{Supervised and unsupervised learning}
+%======================================================================
+
+In supervised learning we predict $y$ from $\vx$: we learn a function $f$ with $y\approx f(\vx)$, or, in the probabilistic view of Chapter 1, a conditional distribution $p(y\mid\vx)$. Linear and logistic regression and the neural networks of the previous chapters are all of this kind. In unsupervised learning there is no $y$. The goal is to find patterns or structure in $\mX$ itself. Several more specific goals fall under this heading.
+\begin{itemize}
+  \item \emph{Learning a probability distribution} $p(\vx)$. The simplest example is fitting a multivariate Gaussian. Richer models introduce unobserved, or \emph{latent}, variables that explain the structure of the data. These \emph{latent variable models} include mixture models, which underlie clustering and are the subject of this chapter, and factor analysis and principal component analysis (PCA), covered in a later chapter. Deep latent variable models, such as variational autoencoders, normalizing flows and diffusion models, use neural networks to define flexible distributions.
+  \item \emph{Learning to generate samples} that look like the data, without necessarily being able to evaluate $p(\vx)$. Generative adversarial networks are the standard example.
+  \item \emph{Self-supervised learning}: predicting part of $\vx$ from another part. Large language models are trained this way, by predicting the next or a masked word. The same idea has been very successful for proteins: protein language models such as ESM are trained to predict masked amino acids from the rest of the sequence, and their internal representations turn out to capture structure and function.
+\end{itemize}
+Between the two settings lies \emph{semi-supervised learning}, where some data points have labels and others do not. The structure learned from the unlabelled points can help learn $p(y\mid\vx)$ from the few labelled ones. This situation is common in genomics, where measurements are cheap and annotations are expensive.
+
+%======================================================================
+\section{Clustering in genomics}
+%======================================================================
+
+Clustering means finding latent groupings of data points such that points in the same group are similar to each other and different from points in other groups. Figure~\ref{fig:als_pca} shows why this is natural for genomic data. Each point is the RNA-seq profile of one post-mortem tissue sample from a large study of amyotrophic lateral sclerosis (ALS), projected onto its first two principal components (PCA is the canonical method for this kind of dimensionality reduction and is covered in a later chapter). The samples fall into groups that correspond to the tissue of origin: spinal cord samples on the left, cerebellum at the top right, and the cortical regions and hippocampus together at the bottom right. Here we know the tissue labels and can check that the groups are real. In other settings the groups are unknown, and finding them is the goal: subtypes of a disease (Section~\ref{sec:als}), or cell types in single-cell data.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.75\linewidth]{slides/als_pca.pdf}
+  \caption{First two principal components of gene expression in post-mortem central nervous system samples from an ALS cohort, coloured by tissue of origin. Percentages give the proportion of variance explained by each component. Samples group by tissue: spinal cord (left), cerebellum (top right) and other brain regions (bottom right). From the author's analysis.}
+  \label{fig:als_pca}
+\end{figure}
+
+\subsection{Single-cell RNA-seq}
+
+Bulk RNA-seq (Chapter 1) measures the average expression over all the cells in a sample. Single-cell RNA-seq (scRNA-seq) measures expression in each cell separately, and clustering cells into cell types is one of its central tasks. The most widely used technologies isolate cells in droplets~\citep{macosko2015,klein2015,zheng2017} (Figure~\ref{fig:scrnaseq}). A tissue is dissociated into a suspension of single cells, which flows through a microfluidic device that encapsulates cells into aqueous droplets in oil, each with a gel bead. Every bead carries many copies of a DNA oligonucleotide consisting of a \emph{cell barcode}, shared by all oligonucleotides on that bead, a \emph{unique molecular identifier} (UMI), different for every oligonucleotide, and a poly(T) tail that captures the poly(A) tail of messenger RNA. Inside the droplet the cell is lysed, its mRNA molecules hybridize to the oligonucleotides, and reverse transcription produces cDNA tagged with the cell barcode and a UMI. The droplets are then broken and the cDNA from all cells is pooled, amplified by PCR and sequenced. After sequencing, the cell barcode tells us which cell each read came from, and the UMI lets us collapse PCR duplicates: reads with the same barcode, UMI and gene came from the same original molecule. The result is a matrix of UMI counts, cells by genes.
+
+\begin{figure}[!htbp]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    % tissue -> suspension -> droplets
+    \foreach \x/\y/\c in {0/0/orange!50, 0.35/0.15/blue!40, 0.15/-0.3/green!40, 0.5/-0.2/red!30, -0.2/-0.1/cyan!40, 0.3/0.45/yellow!50}
+      \draw[fill=\c] (\x,\y) circle (0.2);
+    \node[below] at (0.15,-0.6) {tissue};
+    \draw[->, thick] (0.9,0) -- node[above] {dissociate} (2.3,0);
+    \draw[thick] (2.5,0.7) -- (2.5,-0.5) -- (3.9,-0.5) -- (3.9,0.7);
+    \foreach \x/\y/\c in {2.8/-0.2/orange!50, 3.3/0.0/blue!40, 3.6/-0.3/green!40, 3.0/0.25/red!30}
+      \draw[fill=\c] (\x,\y) circle (0.13);
+    \node[below] at (3.2,-0.6) {single cells};
+    \draw[->, thick] (4.1,0) -- node[above] {encapsulate} (5.9,0);
+    % droplets
+    \begin{scope}[xshift=6.7cm, every node/.style={font=\footnotesize}]
+      \draw[fill=cyan!8] (0,0) circle (0.42); \draw[fill=orange!50] (-0.12,0.05) circle (0.13); \fill[gray] (0.17,-0.12) circle (0.09);
+      \node[below] at (0,-0.5) {single cell};
+      \draw[fill=cyan!8] (1.5,0) circle (0.42); \fill[gray] (1.5,0) circle (0.09);
+      \node[below] at (1.5,-0.5) {empty};
+      \draw[fill=cyan!8] (3.0,0) circle (0.42); \draw[fill=blue!40] (2.88,0.12) circle (0.13); \draw[fill=green!40] (3.1,-0.1) circle (0.13);
+      \fill[gray] (2.9,-0.2) circle (0.07);
+      \node[below] at (3.0,-0.5) {doublet};
+    \end{scope}
+    % oligo
+    \begin{scope}[yshift=-2.2cm]
+      \fill[gray] (0,0) circle (0.2); \node[below] at (0,-0.25) {bead};
+      \draw[thick] (0.2,0) -- (0.6,0);
+      \draw[fill=green!35] (0.6,-0.2) rectangle (2.8,0.2); \node at (1.7,0) {cell barcode};
+      \draw[fill=blue!25] (2.8,-0.2) rectangle (3.8,0.2); \node at (3.3,0) {UMI};
+      \node[right, inner sep=1pt] (tt) at (3.85,0) {\texttt{TTTTTT}};
+      \node[right, inner sep=1pt, red!70!black] (aa) at (3.85,0.45) {\texttt{AAAAAA}};
+      \draw[red!70!black, thick, decorate, decoration={snake, amplitude=0.8mm, segment length=3mm}] (aa.east) -- ++(3.2,0)
+        node[right] {mRNA};
+      \draw[green!50!black, thick, ->] (tt.east) -- ++(3.2,0) node[right] {cDNA};
+    \end{scope}
+    % downstream
+    \begin{scope}[yshift=-3.6cm]
+      \node[align=center] (pool) at (0.5,0) {pool, PCR,\\sequence};
+      \node[align=center] (dem) at (4.0,0) {group reads by barcode,\\collapse by UMI};
+      \node[align=center] (mat) at (7.6,0) {count matrix\\cells $\times$ genes};
+      \draw[->, thick] (pool) -- (dem); \draw[->, thick] (dem) -- (mat);
+    \end{scope}
+  \end{tikzpicture}
+  \caption{Droplet-based single-cell RNA-seq. Cells are encapsulated in droplets with barcoded beads (top). Some droplets contain no cell and some contain two (doublets). Each bead oligonucleotide carries a cell barcode, a unique molecular identifier (UMI) and a poly(T) sequence that captures mRNA, which is reverse transcribed into tagged cDNA (middle). After sequencing, reads are assigned to cells by barcode and duplicates are collapsed by UMI (bottom).}
+  \label{fig:scrnaseq}
+\end{figure}
+
+Encapsulation is random, so some droplets contain no cell, and their barcodes capture only ambient RNA that leaked from other cells, while others contain two or more cells, called \emph{doublets}. Both must be filtered out. Droplets are not the only option. Earlier methods used plates or microfluidic chambers, with lower throughput. \emph{Combinatorial indexing} methods such as sci-RNA-seq~\citep{cao2017} and SPLiT-seq~\citep{rosenberg2018} use the cells themselves as compartments: cells are split across wells, a well-specific barcode is added, the cells are pooled and split again, and after several rounds each cell carries a combination of barcodes that is very likely unique. This scales to more than a million cells per experiment. Related assays measure other modalities in single cells, such as chromatin accessibility (scATAC-seq), and some measure several modalities in the same cell, for example RNA and chromatin accessibility, or RNA and surface proteins~\citep{stoeckius2017}.
+
+A typical scRNA-seq analysis has the following steps:
+\begin{enumerate}
+  \item quality control: removing empty droplets, doublets and low-quality cells, and selecting genes;
+  \item optionally, integrating several data sets and correcting batch effects;
+  \item dimensionality reduction (usually PCA) and visualization (usually UMAP or t-SNE);
+  \item clustering cells, and annotating the clusters as cell types using marker genes;
+  \item downstream analyses, such as differential expression between cell types, ``pseudobulk'' analyses that sum counts over the cells of each type in each sample, and gene regulatory network inference.
+\end{enumerate}
+The main computational challenges are scale, with millions of cells, and noise: each cell yields only a few thousand UMIs spread over tens of thousands of genes, so most entries of the count matrix are zero.
+
+Figure~\ref{fig:pbmc} shows the result of such a pipeline on 2700 peripheral blood mononuclear cells (PBMCs), from a widely used tutorial for the Seurat package~\citep{seurat_pbmc,hao2021}. The clusters correspond to immune cell types, such as T cells, B cells, natural killer cells and monocytes. The clustering is computed with a graph-based method (Section~\ref{sec:graph}) in the space of the top principal components, and the two-dimensional UMAP embedding is used only for display. Clustering directly in a UMAP or t-SNE embedding is a mistake. These methods distort distances and densities in order to fit the data into two dimensions, so groups in the embedding can be artefacts and real groups can be merged.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.6\linewidth]{slides/pbmc3k_umap.png}
+  \caption{Clusters of 2700 peripheral blood mononuclear cells shown in a two-dimensional UMAP embedding. The clusters (colours) were found by graph-based clustering in principal component space, not in the UMAP space. Reproduced from the Seurat PBMC 3k tutorial~\citep{seurat_pbmc}.}
+  \label{fig:pbmc}
+\end{figure}
+
+%======================================================================
+\section{The Gaussian mixture model}
+\label{sec:gmm}
+%======================================================================
+
+Rather than designing a clustering algorithm directly, we start from a generative model: a description of a random process that could have produced the data. Fitting the model to data then gives the algorithm. Let $N$ be the number of data points (cells or samples) and $P$ the number of features (genes), with $\vx_i\in\R^P$ the features of data point $i$ and $\mX\in\R^{N\times P}$ the matrix whose $i$-th row is $\vx_i^\top$. Assume there are $K$ clusters, and that cluster $k\in\{1,\dots,K\}$ has a centre $\vmu_k\in\R^P$. The generative process is, for each data point $i=1,\dots,N$,
+\begin{enumerate}
+  \item randomly choose a cluster $c_i\in\{1,\dots,K\}$, with $p(c_i=k)=\pi_k$;
+  \item sample $\vx_i\sim\Normal(\vmu_{c_i},\sigma^2\mI)$.
+\end{enumerate}
+The \emph{mixing proportions} $\vpi=(\pi_1,\dots,\pi_K)$ satisfy $\pi_k\geq 0$ and $\sum_k\pi_k=1$; for now we take them equal, $\pi_k=1/K$. The \emph{cluster assignment} $c_i$ is a latent variable: it is part of the model but not observed. Each cluster is a spherical Gaussian with variance $\sigma^2$ in every direction, so data points scatter around their centre in a ball of radius of order $\sigma$ (Figure~\ref{fig:gmm_gen}). We write $\vmu=(\vmu_1,\dots,\vmu_K)$ and $\vc=(c_1,\dots,c_N)$. Figure~\ref{fig:gmm_gen} also shows the model as a graphical model: the latent $c_i$ and observed $\vx_i$ are repeated for each data point, while $\vmu$ and $\sigma^2$ are shared parameters.
+
+\begin{figure}[!htbp]
+  \centering
+  \begin{minipage}[c]{0.55\linewidth}
+    \includegraphics[width=\linewidth]{mixture_generative.pdf}
+  \end{minipage}\hfill
+  \begin{minipage}[c]{0.4\linewidth}
+    \centering
+    \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+        latent/.style={circle, draw, minimum size=0.9cm},
+        obs/.style={circle, draw, fill=gray!25, minimum size=0.9cm},
+        par/.style={inner sep=1pt}]
+      \node[latent] (c) at (0,1.6) {$c_i$};
+      \node[obs] (x) at (0,0) {$\vx_i$};
+      \node[par] (pi) at (-1.6,1.6) {$\vpi$};
+      \node[par] (mu) at (1.8,0.7) {$\vmu_k$};
+      \node[par] (s) at (1.8,-0.8) {$\sigma^2$};
+      \draw[->] (pi) -- (c); \draw[->] (c) -- (x); \draw[->] (mu) -- (x); \draw[->] (s) -- (x);
+      \node[draw, rounded corners, fit=(c)(x), inner sep=10pt, label={[anchor=south east, font=\scriptsize, inner sep=2pt]south east:$N$}] {};
+      \node[draw, rounded corners, fit=(mu), inner sep=7pt, label={[anchor=south east, font=\scriptsize, inner sep=1pt]south east:$K$}] {};
+    \end{tikzpicture}
+  \end{minipage}
+  \caption{The spherical Gaussian mixture model. Left: simulated data from $K=3$ clusters in $P=2$ dimensions, coloured by the true assignment $c_i$, with the centres $\vmu_k$ and circles of radius $2\sigma$. Right: the model as a graphical model. Shaded nodes are observed, plates denote repetition.}
+  \label{fig:gmm_gen}
+\end{figure}
+
+\subsection{The likelihood}
+
+If we knew the assignments $\vc$, the likelihood of the centres would be
+\begin{equation}
+  p(\mX\mid\vmu,\vc) = \prod_{i=1}^N p(\vx_i\mid\vmu,c_i) = \prod_{i=1}^N\Normal(\vx_i\mid\vmu_{c_i},\sigma^2\mI).
+\end{equation}
+It is convenient to encode the assignments as indicators. Let $r_{ik}=\ind[c_i=k]$, which is 1 if data point $i$ is in cluster $k$ and 0 otherwise, so that each row of the $N\times K$ matrix $(r_{ik})$ has exactly one 1. Raising each factor to the power $r_{ik}$ picks out the right cluster,
+\begin{equation}
+  p(\mX\mid\vmu,\vc) = \prod_{i=1}^N\prod_{k=1}^K\Normal(\vx_i\mid\vmu_k,\sigma^2\mI)^{r_{ik}},
+\end{equation}
+and the log likelihood is
+\begin{equation}
+  \log p(\mX\mid\vmu,\vc) = \sum_{i=1}^N\sum_{k=1}^K r_{ik}\log\Normal(\vx_i\mid\vmu_k,\sigma^2\mI)
+  = \sum_{i=1}^N\sum_{k=1}^K r_{ik}\left[-\frac{P}{2}\log 2\pi\sigma^2 - \frac{1}{2\sigma^2}\|\vx_i-\vmu_k\|^2\right].
+  \label{eq:complete_loglik}
+\end{equation}
+Since $\sum_k r_{ik}=1$, the first term sums to $-\frac{NP}{2}\log 2\pi\sigma^2$, which does not depend on $\vmu$ or $\vc$.
+
+%======================================================================
+\section{K-means}
+\label{sec:kmeans}
+%======================================================================
+
+\subsection{The algorithm}
+
+Treat both the centres $\vmu$ and the assignments $\vc$ as unknowns to be estimated by maximum likelihood. Multiplying~\eqref{eq:complete_loglik} by $-2\sigma^2$ and dropping the constant gives the loss
+\begin{equation}
+  L(\vmu,\vc) = -2\sigma^2\log p(\mX\mid\vmu,\vc) + \text{const} = \sum_{i=1}^N\sum_{k=1}^K r_{ik}\|\vx_i-\vmu_k\|^2 ,
+  \label{eq:kmeans_loss}
+\end{equation}
+the total squared distance from each point to its assigned centre, also called the \emph{within-cluster sum of squares}. Minimizing $L$ jointly over $\vmu$ and $\vc$ is hard, because $\vc$ is discrete and there are $K^N$ possible assignments; in general the problem is NP-hard~\citep{aloise2009}. But each block of variables is easy to optimize with the other held fixed, which suggests alternating between them, a form of coordinate descent.
+\begin{enumerate}
+  \item \emph{Assignment step.} With $\vmu$ fixed, $L$ is a sum of separate terms for each data point, and the term for point $i$ is $\|\vx_i-\vmu_{c_i}\|^2$. It is minimized by assigning each point to its nearest centre,
+  \begin{equation}
+    c_i = \argmin_k\|\vx_i-\vmu_k\|^2 .
+  \end{equation}
+  \item \emph{Update step.} With $\vc$ fixed, $L$ is a sum of separate quadratics in each $\vmu_k$. Setting the gradient to zero,
+  \begin{equation}
+    \nabla_{\vmu_k}L = -2\sum_{i=1}^N r_{ik}(\vx_i-\vmu_k) = 0
+    \quad\Rightarrow\quad
+    \vmu_k = \frac{\sum_{i}r_{ik}\vx_i}{\sum_i r_{ik}} ,
+    \label{eq:kmeans_update}
+  \end{equation}
+  so each centre moves to the mean of the points assigned to it. The denominator $N_k=\sum_i r_{ik}$ is the number of points in cluster $k$.
+\end{enumerate}
+Iterating these two steps is the K-means algorithm (Algorithm~\ref{alg:kmeans})~\citep{lloyd1982,macqueen1967}. Each step minimizes $L$ over one block of variables, so $L$ never increases. Because there are finitely many assignments and $L$ strictly decreases whenever the assignments change, the algorithm stops after a finite number of iterations at a point where neither step changes anything. This is a local minimum of $L$, not necessarily the global one. Each iteration costs $O(NKP)$ operations, for the distances between every point and every centre, which makes K-means fast enough for millions of points. The assignment step partitions $\R^P$ into the regions closest to each centre (Voronoi cells), whose boundaries are hyperplanes, so K-means clusters are always separated by linear boundaries.
+
+\begin{algorithm}[!htbp]
+  \caption{K-means}
+  \label{alg:kmeans}
+  \begin{algorithmic}[1]
+    \State Initialize centres $\vmu_1,\dots,\vmu_K$, e.g.\ with K-means++
+    \Repeat
+      \For{$i=1,\dots,N$} $c_i\gets\argmin_k\|\vx_i-\vmu_k\|^2$ \EndFor
+      \For{$k=1,\dots,K$} $\vmu_k\gets\frac{1}{N_k}\sum_{i:c_i=k}\vx_i$, \quad $N_k=|\{i:c_i=k\}|$ \EndFor
+    \Until{the assignments do not change}
+  \end{algorithmic}
+\end{algorithm}
+
+Figure~\ref{fig:kmeans_iter} shows K-means on data from three clusters. Starting from poorly placed centres, the first assignment step splits the data badly, but after two updates the centres have moved to the three groups and the algorithm has converged. The last panel shows a run from a different starting point that converges to a poor local minimum: one centre covers two true clusters and two centres split the third. Its loss is five times larger.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{kmeans_iterations.pdf}
+  \caption{K-means on simulated data with three clusters. Each panel shows the current centres (crosses), the regions of the plane closest to each centre (shaded) and the resulting assignments (point colours), with the loss $L$ of~\eqref{eq:kmeans_loss}. The first three panels are successive iterations from one initialization, which converges to the correct clusters. The last panel is the converged result from a different initialization, a poor local minimum.}
+  \label{fig:kmeans_iter}
+\end{figure}
+
+\subsection{Practical points}
+
+\paragraph{Initialization.} Because K-means finds a local minimum, the starting point matters. A simple choice is to pick $K$ data points at random as initial centres, but this often places two centres in the same true cluster and none in another (Figure~\ref{fig:kmeanspp}, left), and K-means cannot recover from this because centres only move locally. \emph{K-means++}~\citep{arthur2007} spreads the initial centres out. The first centre is a data point chosen uniformly at random. Each subsequent centre is a data point chosen at random with probability proportional to $D(\vx_i)^2$, the squared distance from $\vx_i$ to the nearest centre chosen so far. Points far from the existing centres, which are likely to be in an uncovered cluster, are therefore likely to be chosen. \citet{arthur2007} showed that the expected loss of the K-means++ initialization alone is within a factor $O(\log K)$ of the optimum. It is also good practice to run K-means from several (for example 10) initializations and keep the solution with the lowest loss; standard implementations do this by default.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{kmeanspp.pdf}
+  \caption{K-means with $K=5$ on $N=200$ simulated points. Left: from a random initialization, K-means converges to a local minimum that merges two clusters (top right) and splits another (bottom). Right: from a K-means++ initialization it finds the five clusters, with lower loss $L$.}
+  \label{fig:kmeanspp}
+\end{figure}
+
+\paragraph{Choosing $K$.} The number of clusters is a hyperparameter, and it cannot be chosen by minimizing $L$: the optimal loss can only decrease as $K$ grows, reaching zero when every point is its own cluster (Figure~\ref{fig:choose_k}, left). One informal approach looks for an ``elbow'', the value of $K$ after which $L$ decreases slowly. The \emph{gap statistic}~\citep{tibshirani2001} formalizes this by comparing $\log L_K$, the log of the converged loss with $K$ clusters, with its expected value under a reference distribution with no cluster structure, usually the uniform distribution over the bounding box of the data,
+\begin{equation}
+  \text{Gap}(K) = \E^*\left[\log L^*_K\right] - \log L_K .
+\end{equation}
+The expectation is estimated by clustering $B$ reference data sets of the same size, and $s_K$ is the standard deviation of $\log L^*_K$ across them multiplied by $\sqrt{1+1/B}$. The estimate is the smallest $K$ such that $\text{Gap}(K)\geq\text{Gap}(K+1)-s_{K+1}$. Figure~\ref{fig:choose_k} (right) shows the gap statistic correctly choosing $K=4$. Other approaches are manual inspection, for example whether clusters correspond to known cell types; model selection criteria such as BIC for mixture models; and Bayesian nonparametric models, which place a Dirichlet process prior on the mixing proportions~\citep{ferguson1973}. The Dirichlet process allows an unbounded number of clusters, of which a finite number are used by any finite data set, and the posterior over the number of clusters is inferred together with the clusters~\citep{rasmussen2000}. Section~\ref{sec:significance} returns to this question from the point of view of hypothesis testing.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{choose_k.pdf}
+  \caption{Choosing the number of clusters for simulated data with four clusters. Left: the K-means loss decreases with $K$, steeply up to $K=4$ and slowly after. Right: the gap statistic with error bars $\pm s_K$ ($B=20$ uniform reference data sets); the rule of \citet{tibshirani2001} selects $K=4$ (dashed line).}
+  \label{fig:choose_k}
+\end{figure}
+
+\paragraph{Scaling.} K-means uses Euclidean distance, so features on larger scales dominate. For expression data, counts are usually normalized for sequencing depth and log-transformed, and the clustering is run on the top principal components rather than on all genes.
+
+%======================================================================
+\section{From hard to soft assignments: expectation-maximization}
+\label{sec:em}
+%======================================================================
+
+K-means makes a hard decision for every point, even one that lies halfway between two centres. It also treats the assignments $\vc$ as parameters to be optimized, although they are latent variables with a distribution under the model. The principled alternative is to maximize the \emph{marginal likelihood} of the parameters, with the latent variables summed out,
+\begin{equation}
+  p(\mX\mid\vmu) = \sum_{\vc}p(\mX,\vc\mid\vmu), \qquad
+  \log p(\mX\mid\vmu) = \log\sum_{\vc}p(\mX,\vc\mid\vmu),
+  \label{eq:marginal}
+\end{equation}
+where $\sum_{\vc}$ is over all $K^N$ joint assignments. The log of a sum is awkward to maximize directly. The \emph{expectation-maximization} (EM) algorithm~\citep{dempster1977} replaces it with a lower bound that is easy to maximize. We derive it for a general latent variable model with parameters $\theta$, latent variables $\vc$ and data $\mX$, and then specialize to the mixture model, where $\theta=\vmu$.
+
+\subsection{A lower bound from Jensen's inequality}
+
+Let $q(\vc)$ be any probability distribution over the latent variables that is positive wherever $p(\mX,\vc\mid\theta)$ is. Multiplying and dividing by $q(\vc)$ inside the sum,
+\begin{equation}
+  \log p(\mX\mid\theta) = \log\sum_{\vc}q(\vc)\frac{p(\mX,\vc\mid\theta)}{q(\vc)}
+  = \log\E_{q}\left[\frac{p(\mX,\vc\mid\theta)}{q(\vc)}\right].
+\end{equation}
+Jensen's inequality states that for a concave function $f$ and any random variable $u$, $f(\E[u])\geq\E[f(u)]$: the function of an average is at least the average of the function. Figure~\ref{fig:jensen} shows why for the logarithm. Any chord of a concave curve lies below the curve, and a weighted average of two points on the curve is a point on the chord. Applying Jensen's inequality with $f=\log$,
+\begin{equation}
+  \log p(\mX\mid\theta) \geq \E_q\left[\log\frac{p(\mX,\vc\mid\theta)}{q(\vc)}\right]
+  = \sum_{\vc}q(\vc)\log\frac{p(\mX,\vc\mid\theta)}{q(\vc)} \equiv \mathcal{F}[q,\theta].
+  \label{eq:elbo}
+\end{equation}
+The lower bound $\mathcal{F}$ is a function of both the distribution $q$ and the parameters $\theta$. It is called the \emph{evidence lower bound} (ELBO), or, with the opposite sign, the variational free energy~\citep{neal1998}. EM maximizes $\mathcal{F}$ by alternating between $q$ and $\theta$,
+\begin{align}
+  \text{E step:}\quad & q \gets \argmax_q\mathcal{F}[q,\theta], \\
+  \text{M step:}\quad & \theta \gets \argmax_\theta\mathcal{F}[q,\theta].
+\end{align}
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.5\linewidth]{jensen.pdf}
+  \caption{Jensen's inequality for the concave function $\log u$. For a random variable $u$ taking values $u_1$ and $u_2$ with probabilities $q$ and $1-q$ (here $q=0.5$), $\E_q[\log u]$ lies on the chord between $(u_1,\log u_1)$ and $(u_2,\log u_2)$, below $\log\E_q[u]$ on the curve. The vertical segment is the gap in~\eqref{eq:elbo}.}
+  \label{fig:jensen}
+\end{figure}
+
+\subsection{The E step}
+
+To find the maximizing $q$, write the joint probability as $p(\mX,\vc\mid\theta)=p(\vc\mid\mX,\theta)\,p(\mX\mid\theta)$. Substituting into~\eqref{eq:elbo},
+\begin{align}
+  \mathcal{F}[q,\theta] &= \sum_{\vc}q(\vc)\log p(\mX\mid\theta) + \sum_{\vc}q(\vc)\log\frac{p(\vc\mid\mX,\theta)}{q(\vc)} \nonumber\\
+  &= \log p(\mX\mid\theta) - \KL\left(q(\vc)\,\|\,p(\vc\mid\mX,\theta)\right),
+  \label{eq:elbo_kl}
+\end{align}
+using $\sum_{\vc}q(\vc)=1$, where $\KL(q\|p)=\sum_{\vc}q(\vc)\log\frac{q(\vc)}{p(\vc)}$ is the Kullback-Leibler divergence. The KL divergence is non-negative and is zero only when $q=p$. So the gap between the log marginal likelihood and the bound is exactly $\KL(q\|p(\vc\mid\mX,\theta))$, and the E step sets $q$ to the posterior distribution of the latent variables under the current parameters,
+\begin{equation}
+  q(\vc) = p(\vc\mid\mX,\theta),
+\end{equation}
+which makes the bound tight: $\mathcal{F}[q,\theta]=\log p(\mX\mid\theta)$. The name ``expectation step'' comes from computing the expectations under this posterior that the M step needs.
+
+\subsection{The M step}
+
+Expanding the logarithm in~\eqref{eq:elbo},
+\begin{equation}
+  \mathcal{F}[q,\theta] = \E_q\left[\log p(\mX,\vc\mid\theta)\right] - \E_q\left[\log q(\vc)\right].
+\end{equation}
+The second term, the entropy of $q$ with a minus sign, does not depend on $\theta$, so the M step is
+\begin{equation}
+  \theta \gets \argmax_\theta\E_q\left[\log p(\mX,\vc\mid\theta)\right],
+\end{equation}
+the maximization of the expected complete-data log likelihood. This is usually much easier than maximizing~\eqref{eq:marginal}, because the logarithm acts directly on the joint probability, which for most models is a product of simple terms.
+
+\subsection{EM increases the likelihood}
+
+Let $\theta^{\text{old}}$ be the current parameters, $q$ the posterior computed from them in the E step, and $\theta^{\text{new}}$ the result of the M step. Then
+\begin{equation}
+  \log p(\mX\mid\theta^{\text{new}}) \geq \mathcal{F}[q,\theta^{\text{new}}] \geq \mathcal{F}[q,\theta^{\text{old}}] = \log p(\mX\mid\theta^{\text{old}}).
+\end{equation}
+The first inequality is the bound~\eqref{eq:elbo}, the second holds because the M step maximizes $\mathcal{F}$ over $\theta$, and the equality holds because the E step made the bound tight at $\theta^{\text{old}}$. So each EM iteration can only increase the marginal likelihood. Like K-means, EM converges to a local optimum that depends on the initialization, and it is common to initialize EM with the result of K-means.
+
+\subsection{EM for the mixture model}
+
+\paragraph{E step.} By Bayes' rule, the posterior over assignments is
+\begin{equation}
+  q(\vc) = p(\vc\mid\mX,\vmu) = \frac{p(\mX\mid\vc,\vmu)\,p(\vc)}{p(\mX\mid\vmu)} .
+\end{equation}
+Both the likelihood $p(\mX\mid\vc,\vmu)=\prod_i p(\vx_i\mid c_i,\vmu)$ and the prior $p(\vc)=\prod_i p(c_i)$, with $p(c_i=k)=1/K$, factorize over data points, so the posterior factorizes too, $q(\vc)=\prod_i q(c_i)$, with
+\begin{equation}
+  q(c_i=k) = \frac{p(\vx_i\mid c_i=k,\vmu)\,\frac{1}{K}}{\sum_{k'=1}^K p(\vx_i\mid c_i=k',\vmu)\,\frac{1}{K}}
+  = \frac{\Normal(\vx_i\mid\vmu_k,\sigma^2\mI)}{\sum_{k'=1}^K\Normal(\vx_i\mid\vmu_{k'},\sigma^2\mI)} .
+\end{equation}
+We write $r_{ik}=q(c_i=k)$ and call it the \emph{responsibility} of cluster $k$ for point $i$. It replaces the hard indicator of K-means with a probability: $r_{ik}\in[0,1]$ and $\sum_k r_{ik}=1$. Because all clusters share the variance $\sigma^2\mI$, the normalizing constants of the Gaussians cancel and
+\begin{equation}
+  r_{ik} = \frac{\exp\left(-\|\vx_i-\vmu_k\|^2/2\sigma^2\right)}{\sum_{k'}\exp\left(-\|\vx_i-\vmu_{k'}\|^2/2\sigma^2\right)},
+  \label{eq:resp}
+\end{equation}
+a softmax of the negative squared distances to the centres, scaled by $2\sigma^2$.
+
+\paragraph{M step.} The complete-data log likelihood is~\eqref{eq:complete_loglik} plus the log prior $\sum_i\log p(c_i)$, which does not depend on $\vmu$. Its expectation under $q$ replaces each indicator $\ind[c_i=k]$ by its expectation $r_{ik}$,
+\begin{equation}
+  \E_q\left[\log p(\mX,\vc\mid\vmu)\right] = -\frac{1}{2\sigma^2}\sum_{i=1}^N\sum_{k=1}^K r_{ik}\|\vx_i-\vmu_k\|^2 + \text{const}.
+\end{equation}
+This has the same form as the K-means loss~\eqref{eq:kmeans_loss}, so the maximizer has the same form as~\eqref{eq:kmeans_update},
+\begin{equation}
+  \vmu_k = \frac{\sum_i r_{ik}\vx_i}{\sum_i r_{ik}},
+  \label{eq:em_mu}
+\end{equation}
+now a weighted mean in which every point contributes to every centre in proportion to its responsibility. EM for this model is therefore a ``soft'' or weighted K-means: compute responsibilities~\eqref{eq:resp}, update centres~\eqref{eq:em_mu}, and repeat.
+
+The variance $\sigma^2$ controls how soft the assignments are. As $\sigma^2\to 0$, the softmax in~\eqref{eq:resp} puts all its weight on the nearest centre, $r_{ik}\to\ind[k=\argmin_{k'}\|\vx_i-\vmu_{k'}\|^2]$, and EM reduces to K-means. K-means is thus the zero-variance limit of EM for the spherical Gaussian mixture. Figure~\ref{fig:em_vs_kmeans} compares the two on overlapping clusters. Points far from all centres, or between two of them, receive mixed responsibilities under EM, while K-means forces each into one cluster.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{em_vs_kmeans.pdf}
+  \caption{K-means (left) and EM for a spherical Gaussian mixture with fixed $\sigma$ (right) on three overlapping simulated clusters, from the same initialization. On the right each point's colour is a mixture of the three cluster colours weighted by its responsibilities $r_{ik}$, so points between clusters have intermediate colours. Crosses mark the converged centres.}
+  \label{fig:em_vs_kmeans}
+\end{figure}
+
+\paragraph{Learning the other parameters.} The same M step gives updates for the remaining parameters if we treat them as unknown. With unequal mixing proportions $\pi_k$, the E step becomes $r_{ik}\propto\pi_k\Normal(\vx_i\mid\vmu_k,\sigma^2\mI)$, and the expected complete-data log likelihood gains the term $\sum_i\sum_k r_{ik}\log\pi_k$. Maximizing it subject to $\sum_k\pi_k=1$ with a Lagrange multiplier $\lambda$, $\partial/\partial\pi_k\left[\sum_i r_{ik}\log\pi_k-\lambda\pi_k\right]=0$ gives $\pi_k=\sum_i r_{ik}/\lambda$, and the constraint gives $\lambda=\sum_i\sum_k r_{ik}=N$, so
+\begin{equation}
+  \pi_k = \frac{1}{N}\sum_{i=1}^N r_{ik},
+\end{equation}
+the average responsibility of cluster $k$. Differentiating the expectation of~\eqref{eq:complete_loglik} with respect to $\sigma^2$, $-\frac{NP}{2\sigma^2}+\frac{1}{2\sigma^4}\sum_i\sum_k r_{ik}\|\vx_i-\vmu_k\|^2=0$, gives
+\begin{equation}
+  \sigma^2 = \frac{1}{NP}\sum_{i=1}^N\sum_{k=1}^K r_{ik}\|\vx_i-\vmu_k\|^2 .
+\end{equation}
+The log marginal likelihood, which EM increases at every iteration and which is useful for monitoring convergence and comparing models, is $\log p(\mX\mid\theta)=\sum_i\log\sum_k\pi_k\Normal(\vx_i\mid\vmu_k,\sigma^2\mI)$. In practice the inner sum is computed with the log-sum-exp trick, $\log\sum_k e^{a_k}=a^*+\log\sum_k e^{a_k-a^*}$ with $a^*=\max_k a_k$, to avoid numerical underflow. Chapter 9 of \citet{bishop2006} gives a complementary treatment of mixture models and EM.
+
+%======================================================================
+\section{Why start from a generative model?}
+%======================================================================
+
+K-means can be described without any probability, as minimizing the within-cluster sum of squares. Deriving it from a generative model has the advantage that the model makes its assumptions explicit, and so it is easy to change them and rederive the algorithm.
+\begin{itemize}
+  \item \emph{Cluster shapes.} The spherical model assumes every cluster is a ball of the same size. Each cluster can instead have its own covariance matrix $\mSigma_k\in\R^{P\times P}$, $\vx_i\mid c_i=k\sim\Normal(\vmu_k,\mSigma_k)$. The covariance can be spherical ($\sigma_k^2\mI$), diagonal, full, or low rank plus diagonal, which gives a mixture of factor analysers~\citep{ghahramani1996}, and it can be shared across clusters or separate for each. A full covariance has $P(P+1)/2$ parameters per cluster, which is impossible to estimate for $P=20{,}000$ genes, so the low-rank and diagonal options matter for genomic data.
+  \item \emph{Data types.} Count data, such as UMI counts, can be modelled with Poisson or negative binomial distributions instead of Gaussians.
+  \item \emph{Uncertainty.} A Bayesian treatment, with priors on the parameters, gives a posterior distribution over cluster assignments and parameters, and the Dirichlet process extends this to an unknown number of clusters.
+\end{itemize}
+
+For a Gaussian mixture with full covariances, the E step is $r_{ik}\propto\pi_k\Normal(\vx_i\mid\vmu_k,\mSigma_k)$, where now the normalizing constants $|2\pi\mSigma_k|^{-1/2}$ do not cancel, and the M step updates $\pi_k$ and $\vmu_k$ as before and each covariance to the responsibility-weighted sample covariance,
+\begin{equation}
+  \mSigma_k = \frac{\sum_i r_{ik}(\vx_i-\vmu_k)(\vx_i-\vmu_k)^\top}{\sum_i r_{ik}}.
+\end{equation}
+Figure~\ref{fig:gmm_full} shows the effect on elongated clusters. K-means, whose clusters are separated by straight lines equidistant from the centres, cuts the elongated clusters in the wrong places, while the full-covariance mixture recovers them. One caution: the likelihood of a mixture with separate covariances is unbounded. If one component's mean sits on a data point and its covariance shrinks toward zero, the density at that point, and hence the likelihood, goes to infinity. Implementations avoid this degenerate solution by adding a small constant to the diagonal of each $\mSigma_k$, which corresponds to a prior on the covariances.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{gmm_full_cov.pdf}
+  \caption{Three simulated clusters, two of them elongated. Left: K-means with $K=3$. Right: a Gaussian mixture with a full covariance per cluster fit by EM; ellipses show one and two standard deviations of each fitted component. ARI is the adjusted Rand index between the clustering and the true labels (Section~\ref{sec:significance}), where 1 means perfect agreement.}
+  \label{fig:gmm_full}
+\end{figure}
+
+%======================================================================
+\section{Clustering methods for single-cell data}
+\label{sec:scclust}
+%======================================================================
+
+K-means and Gaussian mixtures are one family of clustering methods. Figure~\ref{fig:kiselev} compares them with the two other families used for single-cell data, hierarchical clustering and graph-based community detection, on the same data set~\citep{kiselev2019}. The ``true'' labels (panel a) are the cell types reported by the original study. K-means (b) places centres in the densest regions and splits or merges groups of unequal size. Hierarchical clustering (c) builds a tree. Community detection on a $k$-nearest neighbour graph (d, e) gives results that depend on the choice of $k$. No method recovers the reported labels exactly. We describe hierarchical, spectral and graph-based clustering in turn.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.75\linewidth]{slides/kiselev2019_fig3.png}
+  \caption{Clustering of a single-cell RNA-seq data set shown in principal component space. (a) Cell labels from the original study. (b) K-means; triangles mark the centres. (c) Hierarchical clustering. (d, e) Community detection (Louvain) on $k$-nearest neighbour graphs with $k=5$ and $k=10$. Reproduced from \citet{kiselev2019}.}
+  \label{fig:kiselev}
+\end{figure}
+
+\subsection{Hierarchical clustering}
+
+Agglomerative hierarchical clustering builds a tree, or \emph{dendrogram}, from the bottom up. It starts with each of the $N$ data points in its own cluster and repeatedly merges the two closest clusters until one cluster remains. The height at which two clusters merge is the distance between them. Cutting the tree at a given height, or at the height that leaves $K$ clusters, gives a flat clustering. The method needs a \emph{linkage}, a rule for the distance between two clusters $A$ and $B$ given distances between points:
+\begin{itemize}
+  \item \emph{single} linkage, the minimum distance between a point in $A$ and a point in $B$;
+  \item \emph{complete} linkage, the maximum such distance;
+  \item \emph{average} linkage, the average over all pairs;
+  \item \emph{Ward} linkage~\citep{ward1963}, the increase in the within-cluster sum of squares caused by merging,
+  \begin{equation}
+    w(A,B) = \text{ESS}(A\cup B) - \text{ESS}(A) - \text{ESS}(B), \qquad
+    \text{ESS}(A) = \sum_{i\in A}\Big\|\vx_i-\frac{1}{|A|}\sum_{j\in A}\vx_j\Big\|^2 ,
+    \label{eq:ward}
+  \end{equation}
+  where ESS is the error sum of squares and $|A|$ is the number of points in $A$. It can be shown that $w(A,B)=\frac{|A||B|}{|A|+|B|}\|\bar\vx_A-\bar\vx_B\|^2$, where $\bar\vx_A$ is the mean of cluster $A$ (Exercise~\ref{ex:ward}). Ward linkage greedily minimizes the same within-cluster sum of squares as K-means.
+\end{itemize}
+
+Hierarchical clustering has two advantages over K-means: it is not iterative and has no randomness, so it gives the same answer every time, and a single tree gives clusterings at every resolution. Its disadvantages are that merges are greedy and can never be undone, that it needs all $N^2$ pairwise distances, which limits it to tens of thousands of points, and that some linkages give very unbalanced clusters. Single linkage is the extreme case. Because two clusters are close if any pair of their points is close, it merges clusters through chains of intermediate points, and outlying points join the tree last, so cutting the tree into $K$ clusters often gives one large cluster and several singletons (Figure~\ref{fig:hclust}). Hierarchical clustering is also widely used to order the rows and columns of heatmaps, as in the breast cancer subtype heatmap of Chapter 1.
+
+\begin{figure}[!htbp]
+  \centering
+  \begin{subfigure}[b]{\linewidth}
+    \includegraphics[width=\linewidth]{hclust_dendro.pdf}
+    \caption{}
+  \end{subfigure}
+  \begin{subfigure}[b]{\linewidth}
+    \includegraphics[width=\linewidth]{hclust_scatter.pdf}
+    \caption{}
+  \end{subfigure}
+  \caption{Hierarchical clustering of 103 simulated points (three clusters plus eight scattered points) with single and Ward linkage. (a) Dendrograms, with merge heights scaled to a maximum of one. (b) The three clusters obtained by cutting each tree. Single linkage gives one cluster of 100 points and two clusters made of outlying points; Ward linkage recovers the three groups.}
+  \label{fig:hclust}
+\end{figure}
+
+\subsection{Spectral clustering}
+
+K-means finds clusters that are compact blobs around a centre. Some clusters are not like this. In the ``two moons'' data of Figure~\ref{fig:spectral}, each cluster is a curved band, and K-means with $K=2$ cuts across both bands with a straight line. What defines each moon is that it is connected: one can walk from any point in it to any other in small steps without leaving the data. \emph{Spectral clustering} formalizes this with a graph~\citep{shi2000,ng2002,vonluxburg2007}, and it uses K-means as its final step.
+\begin{enumerate}
+  \item Build an $N\times N$ \emph{affinity} matrix $\mA$, with entries
+  \begin{equation}
+    A_{ij} = \exp\left(-\frac{\|\vx_i-\vx_j\|^2}{2s^2}\right), \quad i\neq j, \qquad A_{ii}=0,
+  \end{equation}
+  where the bandwidth $s$ sets the distance at which points count as neighbours. Nearby points have $A_{ij}\approx 1$ and distant points $A_{ij}\approx 0$. $\mA$ is the weighted adjacency matrix of a graph whose nodes are the data points.
+  \item Compute the \emph{degree} of each node, $D_{ii}=\sum_j A_{ij}$, and form the diagonal matrix $\mD$ and the \emph{graph Laplacian} $\mL=\mD-\mA$.
+  \item Eigendecompose $\mL=\mU\mLambda\mU^\top$, where $\mU\in\R^{N\times N}$ is orthogonal and $\mLambda$ is diagonal with the eigenvalues in increasing order, $0=\lambda_1\leq\lambda_2\leq\dots\leq\lambda_N$.
+  \item Run K-means on the rows of $\mU_{:,1:K}\in\R^{N\times K}$, the eigenvectors with the $K$ smallest eigenvalues, treating row $i$ as a $K$-dimensional representation of point $i$.
+\end{enumerate}
+
+Why does this work? For any vector $\vf\in\R^N$, which assigns a value $f_i$ to each node,
+\begin{equation}
+  \vf^\top\mL\vf = \sum_i D_{ii}f_i^2 - \sum_{i,j}A_{ij}f_if_j
+  = \frac{1}{2}\sum_{i,j}A_{ij}\left(f_i^2+f_j^2-2f_if_j\right)
+  = \frac{1}{2}\sum_{i,j}A_{ij}(f_i-f_j)^2 ,
+  \label{eq:laplacian_quad}
+\end{equation}
+where the middle step writes $\sum_i D_{ii}f_i^2=\sum_{i,j}A_{ij}f_i^2$ and symmetrizes using $A_{ij}=A_{ji}$. The quadratic form is small when $\vf$ varies little between strongly connected nodes. It is non-negative, so $\mL$ is positive semi-definite, and it is zero for the constant vector, so $\lambda_1=0$. Now suppose the graph consists of $K$ connected components, with no edges between them. Then~\eqref{eq:laplacian_quad} is zero for any $\vf$ that is constant on each component, so the indicator vectors of the $K$ components are all eigenvectors with eigenvalue 0, and they span the eigenspace of eigenvalue 0. The first $K$ eigenvectors are therefore (an orthogonal rotation of) these indicators, and the rows of $\mU_{:,1:K}$ take only $K$ distinct values, one per component. K-means on the rows recovers the components exactly. Real data are not exactly disconnected, but if the affinity between clusters is weak, the eigenvectors are close to the indicators and K-means on them still separates the clusters. Figure~\ref{fig:spectral} shows this for the two moons. The second eigenvalue is about $4\times 10^{-4}$ and the third about $0.09$, a large gap after $K=2$, and the second eigenvector is nearly constant within each moon.
+
+\begin{figure}[!htbp]
+  \centering
+  \begin{subfigure}[b]{0.66\linewidth}
+    \includegraphics[width=\linewidth]{spectral_moons.pdf}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.33\linewidth}
+    \includegraphics[width=\linewidth]{spectral_embedding.pdf}
+    \caption{}
+  \end{subfigure}
+  \caption{Spectral clustering of the ``two moons'' data ($N=600$). (a) K-means with $K=2$ separates the data with a straight line; spectral clustering with a Gaussian affinity ($s=0.1$) and the unnormalized Laplacian recovers the moons. ARI, adjusted Rand index with the true moons. (b) The second eigenvector of the Laplacian plotted against the first coordinate of each point: it takes one value on each moon, so K-means on the eigenvectors separates them. The first eigenvector is constant.}
+  \label{fig:spectral}
+\end{figure}
+
+Spectral clustering can also be derived as a continuous relaxation of the problem of cutting the graph into $K$ pieces with small total affinity between pieces and balanced sizes~\citep{vonluxburg2007}. Common variants use a normalized Laplacian, $\mI-\mD^{-1}\mA$~\citep{shi2000} or $\mI-\mD^{-1/2}\mA\mD^{-1/2}$~\citep{ng2002}, which handle clusters of different densities better, and a sparse $k$-nearest neighbour graph instead of the dense Gaussian affinity. A dense eigendecomposition costs $O(N^3)$, so for large $N$ the sparse graph and iterative eigensolvers that compute only the first $K$ eigenvectors are essential. The eigendecomposition is deterministic; randomness enters only through the final K-means step.
+
+\subsection{Graph-based clustering}
+\label{sec:graph}
+
+The most widely used clustering methods for single-cell data, the defaults in the Seurat~\citep{hao2021} and Scanpy~\citep{wolf2018} packages, also start from a graph and then look for \emph{communities}, groups of nodes with many edges among themselves and few to the rest of the graph~\citep{levine2015}. The usual pipeline is as follows.
+\begin{enumerate}
+  \item Reduce the data to the top principal components (typically 10--50).
+  \item Build a $k$-nearest neighbour (kNN) graph: connect each cell to the $k$ cells closest to it in PC space. Seurat reweights the edges by the overlap between the two cells' neighbourhoods, which gives a shared nearest neighbour graph.
+  \item Partition the graph by maximizing its \emph{modularity} with the Louvain~\citep{blondel2008} or Leiden~\citep{traag2019} algorithm.
+\end{enumerate}
+For a graph with symmetric weighted adjacency matrix $\mA$, the modularity of an assignment of nodes to communities $c_1,\dots,c_N$ is~\citep{newman2004}
+\begin{equation}
+  Q = \frac{1}{2m}\sum_{i=1}^N\sum_{j=1}^N\left[A_{ij}-\frac{k_ik_j}{2m}\right]\delta(c_i,c_j),
+  \label{eq:modularity}
+\end{equation}
+where $k_i=\sum_j A_{ij}$ is the degree of node $i$, $2m=\sum_{i,j}A_{ij}$ is twice the total edge weight ($m$ is the number of edges in an unweighted graph), and $\delta(c_i,c_j)$ is 1 if $i$ and $j$ are in the same community and 0 otherwise. The term $k_ik_j/2m$ is the expected weight of the edge between $i$ and $j$ in a random graph with the same degrees. Modularity therefore rewards communities with more internal connections than expected by chance. The Louvain algorithm maximizes $Q$ greedily. It first moves individual nodes to the neighbouring community that most increases $Q$, until no move helps; it then merges each community into a single node and repeats on the smaller graph. The Leiden algorithm refines this and guarantees that communities are connected.
+
+Graph-based clustering does not take the number of clusters as input. The granularity is controlled instead by the number of neighbours $k$ and by a \emph{resolution} parameter $\gamma$, which multiplies the expected term $k_ik_j/2m$ in~\eqref{eq:modularity}: larger $\gamma$ penalizes large communities more and gives more, smaller clusters. Figure~\ref{fig:methods} compares K-means, spectral clustering and Louvain on toy data sets with different geometry. K-means handles the compact clusters but fails on the rings, the moons and the elongated clusters. Spectral clustering recovers the rings and moons. Louvain with default resolution splits every data set, including one with no structure at all, into several pieces that follow the connectivity of the graph. These pieces are often biologically meaningful in single-cell data, where cell types have sub-states, but they show that graph-based methods will find clusters whether or not distinct groups exist. The next section takes up that problem.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.72\linewidth]{method_comparison.pdf}
+  \caption{K-means, spectral clustering and Louvain community detection on five simulated data sets (rows; $N=600$ each, features standardized). K-means and spectral clustering were given the true number of clusters (2 for circles and moons, 3 otherwise). Spectral clustering uses a symmetric 10-nearest neighbour graph and the normalized Laplacian $\mI-\mD^{-1/2}\mA\mD^{-1/2}$. Louvain uses a symmetric 30-nearest neighbour graph with resolution $\gamma=1$ and chooses the number of clusters itself, finding 7 to 9 clusters in every data set.}
+  \label{fig:methods}
+\end{figure}
+
+%======================================================================
+\section{Are the clusters real?}
+\label{sec:significance}
+%======================================================================
+
+Every clustering algorithm returns clusters, whether or not the data contain distinct groups. This is a practical problem in single-cell analysis, where clusters are interpreted as cell types or states and then used in downstream analyses. \citet{grabski2023} illustrated it by simulating scRNA-seq counts from a single homogeneous population of cells and running a standard Seurat pipeline with default parameters. Louvain clustering split the cells into nine clusters. Figure~\ref{fig:overcluster} reproduces the effect with a simple simulation: a single population in $P=10$ dimensions, with a long tail along one axis, is divided by Louvain into eight clusters, which in a UMAP or PCA plot look like a plausible gradient of cell states.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.5\linewidth]{overclustering.pdf}
+  \caption{Louvain clustering (30-nearest neighbour graph, resolution 1) of $N=3000$ points simulated from a single population in $P=10$ dimensions, shown on the first two principal components. Although there is only one population, Louvain reports eight clusters.}
+  \label{fig:overcluster}
+\end{figure}
+
+\subsection{Measuring clustering accuracy}
+
+To evaluate a clustering against known labels, as in simulations, we need a measure of agreement between two partitions that does not depend on how the clusters are numbered and that allows different numbers of clusters. The \emph{Rand index} is the proportion of the $\binom{N}{2}$ pairs of points on which the two partitions agree, either placing both points in the same cluster or both in different clusters. Even random partitions agree on many pairs, so the \emph{adjusted Rand index} (ARI)~\citep{hubert1985} rescales it so that its expected value is 0 when the partitions are independent and its maximum is 1 for identical partitions,
+\begin{equation}
+  \text{ARI} = \frac{\text{RI}-\E[\text{RI}]}{\max(\text{RI})-\E[\text{RI}]},
+\end{equation}
+where the expectation is over random partitions with the same cluster sizes. It can be negative. If the truth is a single cluster, any clustering into more than one cluster has ARI 0.
+
+\subsection{A test for splitting a cluster}
+
+The approach of \citet{grabski2023}, building on statistical significance testing for hierarchical clustering~\citep{kimes2017}, asks for each split of the data into two clusters whether the split is stronger than would be expected if the data came from a single population. The test statistic is the Ward linkage~\eqref{eq:ward} between the two clusters $C_1$ and $C_2$, $w=\text{ESS}(C_1\cup C_2)-\left(\text{ESS}(C_1)+\text{ESS}(C_2)\right)$, the reduction in within-cluster sum of squares achieved by the split. The procedure is as follows.
+\begin{enumerate}
+  \item Cluster the data into two groups and compute the observed Ward linkage $w$.
+  \item Fit a null model, a model of a single population, to the data. \citet{grabski2023} fit a model for the counts; in our simulation the null model is a single multivariate Gaussian with the sample mean and covariance of the data.
+  \item Simulate $B$ data sets of the same size from the null model. Cluster each into two groups with the same algorithm and compute its Ward linkage $w_b$, $b=1,\dots,B$.
+  \item Compute the p-value $p=(1+\sum_b\ind[w_b\geq w])/(B+1)$.
+\end{enumerate}
+The crucial step is that the null data sets are clustered with the same algorithm. The two clusters were chosen to be as different as possible, so a naive test of whether their means differ, such as a $t$-test on each gene, would almost always be significant even for a single population. Using the same data to define clusters and to test them is a form of ``double dipping''~\citep{gao2024}. Re-running the clustering on the null data sets accounts for the selection, because the null distribution of $w$ is then the distribution of the best split of a single population.
+
+Figure~\ref{fig:significance} shows the test on two simulated data sets. When the data contain two populations, the observed Ward linkage is larger than any of the 200 null simulations ($p=0.005$, the smallest possible with $B=200$). When the data come from one population with a skewed distribution, the split looks convincing in the PCA plot, but its Ward linkage is typical of the null ($p=0.40$). In the full method the test is applied recursively down a hierarchical clustering tree, starting from the root, and a split is kept only if it is significant, with the significance threshold adjusted to control the family-wise error rate across splits. The same test can be applied to the clusters produced by other methods, such as Louvain, by testing whether pairs of clusters should be merged. In the simulations of \citet{grabski2023}, standard pipelines found between 2 and 15 clusters in data from a single population, and after significance analysis all of them found one. With five true populations the pipelines found between 5 and 11 clusters, and significance analysis brought the numbers closer to five without lowering the ARI.
+
+\begin{figure}[!htbp]
+  \centering
+  \begin{subfigure}[b]{\linewidth}
+    \includegraphics[width=\linewidth]{significance_data.pdf}
+    \caption{}
+  \end{subfigure}
+  \begin{subfigure}[b]{\linewidth}
+    \includegraphics[width=\linewidth]{significance_null.pdf}
+    \caption{}
+  \end{subfigure}
+  \caption{Testing a two-cluster split. (a) Two simulated data sets ($N=600$, $P=10$), each split into two clusters by Ward hierarchical clustering, shown on the first two principal components. Left: two populations whose means differ in one dimension. Right: one population with a skewed first dimension. (b) Ward linkage $w$ of the observed split (red line) compared with its distribution in 200 data sets simulated from a single Gaussian fit to the data and clustered in the same way (histogram). The split is significant for the two-population data and not for the one-population data.}
+  \label{fig:significance}
+\end{figure}
+
+%======================================================================
+\section{Application: molecular subtypes of ALS}
+\label{sec:als}
+%======================================================================
+
+Amyotrophic lateral sclerosis is a fatal neurodegenerative disease of motor neurons. Patients differ in their age of onset, the site where symptoms start and the rate of progression, which raises the question of whether ALS is one disease or several with distinct molecular mechanisms. \citet{tam2019} addressed this with RNA-seq of 148 post-mortem frontal and motor cortex samples from 77 ALS patients, along with samples from patients with other neurological disorders and from controls. Clustering the ALS samples by gene expression gave three groups (Figure~\ref{fig:tam}), which they named by the genes that distinguish them. ALS-Ox, the largest group, has high expression of genes for oxidative stress and synaptic signalling. ALS-Glia has high expression of microglial, astrocyte and oligodendrocyte markers and inflammatory genes. ALS-TE shows activation of transposable elements (retrotransposons) along with chromatin, spliceosome and proteasome genes.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{slides/tam2019_als_subtypes.png}
+  \caption{Molecular subtypes of ALS from post-mortem cortex RNA-seq. Left: the cohort. Right: expression ($z$-scores) of 522 genes (rows) that distinguish three clusters of 148 ALS patient samples (columns), labelled ALS-TE, ALS-Ox and ALS-Glia, with the main functional categories of the genes on the left. Reproduced from \citet{tam2019}.}
+  \label{fig:tam}
+\end{figure}
+
+This study raises the questions that apply to any clustering of patient samples. Are the clusters distinct groups or regions of a continuum? Section~\ref{sec:significance} gives one way to test this. Do they reflect disease mechanism or something else? A cluster defined by glial marker genes may reflect differences in the proportions of cell types in the tissue samples, which could result from neurodegeneration rather than cause it, or from differences in dissection. Methods for estimating cell type composition from bulk expression, covered in a later chapter, help separate these explanations. Finally, are the clusters reproducible in independent cohorts, and do they predict clinical outcomes such as survival? Clustering generates hypotheses about subtypes; establishing them needs this further evidence.
+
+%======================================================================
+\section{Summary}
+%======================================================================
+
+\begin{itemize}
+  \item Unsupervised learning finds structure in data without labels. Clustering, the simplest example, finds latent groups of similar data points, such as cell types in single-cell RNA-seq or disease subtypes in patient cohorts.
+  \item The spherical Gaussian mixture model assigns each point to a latent cluster and draws it from a Gaussian around the cluster centre. K-means fits it by alternating between assigning points to the nearest centre and moving each centre to the mean of its points. It converges to a local minimum of the within-cluster sum of squares, so initialization (K-means++) and multiple restarts matter, and the number of clusters must be chosen, for example with the gap statistic.
+  \item Expectation-maximization maximizes the marginal likelihood of a latent variable model by alternately computing the posterior of the latent variables (E step) and maximizing the expected complete-data log likelihood (M step). Each iteration increases a lower bound that is tight after the E step, so the likelihood never decreases. For the mixture model, EM is a version of K-means with soft assignments, and K-means is its zero-variance limit.
+  \item The generative view makes it easy to change the model: cluster-specific or full covariances, count distributions, and Bayesian priors.
+  \item Hierarchical clustering is deterministic and gives a tree of clusterings, but it can give unbalanced clusters. Spectral clustering runs K-means on eigenvectors of a graph Laplacian and finds connected, non-convex clusters. Graph-based community detection (Louvain, Leiden) on a $k$-nearest neighbour graph is the most widely used method for single-cell data.
+  \item Clustering algorithms find clusters even in data with no group structure. Significance testing against a null model of a single population, with the clustering re-run on the null data, helps choose the number of clusters.
+\end{itemize}
+
+%======================================================================
+\section*{Exercises}
+%======================================================================
+
+\begin{enumerate}
+  \item Show that neither step of K-means can increase the loss~\eqref{eq:kmeans_loss}, and explain why the algorithm terminates after a finite number of iterations. Construct a one-dimensional data set with $N=4$ points and $K=2$ for which K-means has two different fixed points with different losses.
+  \item Show that the gap between the log marginal likelihood and the bound $\mathcal{F}[q,\theta]$ is $\KL(q(\vc)\|p(\vc\mid\mX,\theta))$, as in~\eqref{eq:elbo_kl}, and that the KL divergence is non-negative. (Hint: apply Jensen's inequality to $-\KL$.)
+  \item For a Gaussian mixture with mixing proportions $\pi_k$ and cluster-specific covariances $\mSigma_k$, derive the E step and the M-step updates for $\pi_k$, $\vmu_k$ and $\mSigma_k$.
+  \item Show that the responsibilities~\eqref{eq:resp} tend to hard nearest-centre assignments as $\sigma^2\to 0$, so that EM becomes K-means. What happens as $\sigma^2\to\infty$?
+  \item \label{ex:ward} Prove that the Ward linkage~\eqref{eq:ward} equals $\frac{|A||B|}{|A|+|B|}\|\bar\vx_A-\bar\vx_B\|^2$.
+  \item Show that if a graph has $K$ connected components, the eigenvalue 0 of its Laplacian $\mL=\mD-\mA$ has multiplicity $K$, and give a basis of its eigenspace.
+  \item Simulate data from a single multivariate Gaussian population. Cluster it with K-means for $K=2$ and compute a two-sample $t$-test between the clusters for each feature. How often is the test significant at $p<0.05$? Implement the Ward linkage test of Section~\ref{sec:significance} and compare.
+  \item Download a public single-cell RNA-seq data set, such as the PBMC data of Figure~\ref{fig:pbmc}, and cluster the cells with K-means, a Gaussian mixture and Louvain on the top 20 principal components. Compare the clusterings with the ARI, and examine how the Louvain clusters change with the resolution parameter.
+\end{enumerate}
