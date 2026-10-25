@@ -22,6 +22,10 @@
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
 \usepackage{etoc}
+\makeatletter % wider number columns in contents lists, for numbers such as 11.11 and 11.11.10
+\renewcommand*\l@section{\@dottedtocline{1}{1.5em}{3em}}
+\renewcommand*\l@subsection{\@dottedtocline{2}{4.5em}{3.9em}}
+\makeatother
 % Contents list printed under each chapter heading (sections and subsections).
 \newcommand{\chaptertoc}{%
   \begingroup
@@ -66,7 +70,7 @@
 \frontmatter
 \maketitle
 \setcounter{tocdepth}{1} % chapters and sections; each chapter lists its subsections
-\tableofcontents
+{\let\cleardoublepage\clearpage \tableofcontents} % no blank page after the title page
 \mainmatter
 \bookchapter{chapter01}
 \bookchapter{chapter02}
