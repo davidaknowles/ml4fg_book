@@ -1,0 +1,32 @@
+# ML4FG book: lab notebook
+
+Converting the ML4FG (machine learning for functional genomics) lecture slides into LaTeX book chapters.
+
+## Layout
+
+- `chapterNN/`: one folder per chapter, with `chapterNN.tex`, `chapterNN.bib`, a standalone `main.tex` wrapper, `figures/` and `scripts/make_figures.py`.
+- `figures/slides/` in each chapter holds figures taken from the slides; everything else in `figures/` is generated.
+- `tools/`: utilities for reading slide decks.
+  - `render_slides.py deck.pptx out/` renders each slide to PNG including handwritten ink.
+  - `emf_to_pdf.py` recovers a PDF embedded in an EMF picture.
+- Source `.pptx` decks are kept alongside but not tracked in git (large binaries).
+
+## Conventions
+
+- Notation: bold for vectors and matrices (`\vy`, `\mX`, `\vb` macros, defined with `\providecommand` at the top of each chapter), $\vx_i\in\R^P$ is a column vector so row $i$ of $\mX$ is $\vx_i^\top$. Dimensions are stated when variables are introduced.
+- Lead-ins to display equations use no colon; no blank line before equation environments.
+- Handwritten slide content becomes text or equations where it is math or prose, TikZ where it is a schematic, and a computed plotnine figure where it is a plot of a function or of data.
+- Third-party figures are reproduced with a citation in the caption and listed in the chapter README with a permission flag.
+
+## Slide extraction notes
+
+- PowerPoint pen annotations are stored as InkML (`ppt/ink/inkN.xml`) inside `p:contentPart` elements, with a low-resolution PNG fallback that is too coarse to read. The traces use Microsoft's compressed InkML encoding: per-channel prefixes `!` (explicit), `'` (first difference) and `"` (second difference), persistent until changed. Units are 1/1000 cm (360 EMU).
+- The 2024 deck stores ink in absolute slide coordinates in a single part; the 2023 deck stores one part per stroke with coordinates relative to the part. `render_slides.py` handles both by mapping each part's stroke bounding box onto its `p14:xfrm` box.
+- Slide XML file numbers do not match presentation order; order comes from `p:sldIdLst` in `ppt/presentation.xml`.
+
+## Chapter 1: molecular biology basics and linear models
+
+- Sources: `ML4FG topic 01 regression and introbio.pptx` (2023, fuller derivations) and `... 2.pptx` (2024, newer content and ordering). The chapter follows the 2024 structure and uses the 2023 derivations of the likelihood, OLS and MAP/ridge.
+- Added beyond the slides: closed-form logistic and softmax gradients, soft-thresholding derivation, empirical Bayes marginal likelihood, ridge posterior covariance, exercises.
+- Computed figures use simulated data with fixed seeds. The bias-variance figure is exact for a fixed design ($N=80$, $P=60$), not Monte Carlo. The lasso risk curve shows the Greenshtein-Ritov rate without constants.
+- Open items: permissions for third-party figures (see `chapter01/README.md`); source of the primary-culture figure; check Oncotype DX cohort description and the bootstrap-frequency interpretation of the CCLE elastic-net figure.
