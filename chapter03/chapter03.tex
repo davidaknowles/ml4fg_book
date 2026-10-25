@@ -1,0 +1,772 @@
+% Chapter 3: the chromatin landscape, sequence-to-function models and transformers.
+% Requires: amsmath, amssymb, bm, graphicx, booktabs, subcaption, tikz (arrows.meta, positioning, calc,
+% decorations.pathreplacing, decorations.pathmorphing, shapes.geometric, fit, 3d), natbib.
+% Computed figures are produced by scripts/make_figures.py; figures/slides/ holds figures taken from the lecture slides.
+
+\providecommand{\R}{\mathbb{R}}
+\providecommand{\E}{\mathbb{E}}
+\providecommand{\Normal}{\mathcal{N}}
+\providecommand{\argmax}{\operatorname*{arg\,max}}
+\providecommand{\argmin}{\operatorname*{arg\,min}}
+\providecommand{\vy}{\mathbf{y}}
+\providecommand{\vx}{\mathbf{x}}
+\providecommand{\mX}{\mathbf{X}}
+\providecommand{\mI}{\mathbf{I}}
+\providecommand{\vb}{\boldsymbol{\beta}}
+\providecommand{\veps}{\boldsymbol{\epsilon}}
+\providecommand{\vp}{\mathbf{p}}
+\providecommand{\vg}{\mathbf{g}}
+\providecommand{\ind}{\mathbf{1}}
+\providecommand{\vh}{\mathbf{h}}
+\providecommand{\vq}{\mathbf{q}}
+\providecommand{\vk}{\mathbf{k}}
+\providecommand{\vv}{\mathbf{v}}
+\providecommand{\vz}{\mathbf{z}}
+\providecommand{\ve}{\mathbf{e}}
+\providecommand{\va}{\mathbf{a}}
+\providecommand{\vs}{\mathbf{s}}
+\providecommand{\mH}{\mathbf{H}}
+\providecommand{\mQ}{\mathbf{Q}}
+\providecommand{\mK}{\mathbf{K}}
+\providecommand{\mV}{\mathbf{V}}
+\providecommand{\mA}{\mathbf{A}}
+\providecommand{\mG}{\mathbf{G}}
+\providecommand{\mS}{\mathbf{S}}
+\providecommand{\mW}{\mathbf{W}}
+\providecommand{\mR}{\mathbf{R}}
+\providecommand{\mPi}{\boldsymbol{\Pi}}
+\providecommand{\softmax}{\operatorname{softmax}}
+
+\chapter{The chromatin landscape and transformers}
+\label{ch:chromatin}
+
+Almost every cell in the body carries the same genome, yet a neuron, a hepatocyte and a T cell look and behave very differently. The difference lies in which genes each cell expresses, and that in turn is controlled by how the genome is packaged and which parts of it are accessible to the proteins that read it. This chapter has three parts. The first describes the \emph{chromatin landscape}: how DNA is packed into the nucleus, the chemical modifications of the proteins it is wrapped around, the assays that measure these features genome-wide, and the regulatory elements, promoters and enhancers, that they reveal. The second returns to the convolutional neural networks of Chapter 2 and applies them to predict chromatin accessibility from DNA sequence across many cell types at once, and to predict the effects of genetic variants. The third introduces attention and the transformer architecture, which let a model relate positions that are far apart in a sequence, and describes the long-range sequence-to-function models, Enformer and AlphaGenome, built from them. Along the way we meet Hi-C, the assay that measures the three-dimensional folding of the genome, because a transformer trained only on sequence turns out to learn something about that folding.
+
+%======================================================================
+\section{Chromatin}
+\label{sec:chromatin}
+%======================================================================
+
+\subsection{Packing DNA into the nucleus}
+
+Each human cell contains about 1.8\,m of DNA, stored in a nucleus roughly 6\,$\mu$m across. Fitting it requires several levels of organized packing. At the first level, DNA wraps around protein complexes called \emph{histones} (Figure~\ref{fig:nucleosome}). A \emph{nucleosome} consists of about 147 base pairs (bp) of DNA wrapped around an octamer of histone proteins, two copies each of H2A, H2B, H3 and H4~\citep{luger1997}. Nucleosomes are separated by stretches of \emph{linker DNA}, so that unfolded chromatin looks like beads on a string. \emph{Chromatin} is the general term for DNA together with the proteins bound to it. Higher levels of packing, which we return to in Section~\ref{sec:hic}, fold this string into loops and domains.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    % beads on a string
+    \draw[thick] (0,0) .. controls (0.5,-0.15) .. (1,0);
+    \foreach \x in {1.5,3.0,4.5} {
+      \draw[thick] (\x-0.5,0) .. controls (\x-0.3,-0.05) .. (\x-0.25,0.05);
+      \draw[fill=orange!30] (\x,0.35) circle (0.45);
+      \foreach \dx/\dy in {-0.13/0.45,0.13/0.45,-0.13/0.22,0.13/0.22} \draw[orange!70!black] (\x+\dx,0.35+\dy-0.15) circle (0.13);
+      \draw[thick] (\x-0.45,0.25) arc[start angle=200, end angle=-20, radius=0.48];
+      \draw[thick] (\x+0.45,0.25) .. controls (\x+0.6,0) .. (\x+1.0,0);
+    }
+    \draw[thick] (5.45,0) -- (6.2,0) node[right] {DNA};
+    \node[above] at (3.0,0.9) {nucleosome};
+    \draw[->] (3.0,0.95) -- (3.0,0.82);
+    \draw[decorate, decoration={brace, mirror, amplitude=3pt}] (3.5,-0.2) -- (4.0,-0.2) node[midway, below=3pt, font=\footnotesize] {linker};
+    % histone octamer zoom
+    \begin{scope}[xshift=8.3cm, yshift=0.3cm]
+      \node[draw, circle, fill=orange!30, minimum size=0.8cm, inner sep=0] (h3) at (-0.42,0.42) {H3};
+      \node[draw, circle, fill=orange!30, minimum size=0.8cm, inner sep=0] (h4) at (0.42,0.42) {H4};
+      \node[draw, circle, fill=orange!30, minimum size=0.8cm, inner sep=0] (h2a) at (-0.42,-0.42) {H2A};
+      \node[draw, circle, fill=orange!30, minimum size=0.8cm, inner sep=0] (h2b) at (0.42,-0.42) {H2B};
+      \draw[red!70!black, thick] (h2a.west) -- ++(-0.6,-0.2) node[circle, fill=red!70!black, inner sep=1.5pt] {} node[left, font=\footnotesize] {methyl};
+      \draw[green!50!black, thick] (h2b.east) -- ++(0.6,-0.2) node[circle, fill=green!50!black, inner sep=1.5pt] {} node[right, font=\footnotesize] {acetyl};
+      \node[font=\footnotesize, align=center] at (0,-1.45) {histone octamer (each\\ histone present twice)};
+    \end{scope}
+  \end{tikzpicture}
+  \caption{DNA wraps around nucleosomes, each an octamer of histone proteins (two each of H2A, H2B, H3 and H4), separated by linker DNA. Histone tails can carry chemical modifications such as methylation and acetylation, which are measured by ChIP-seq with modification-specific antibodies.}
+  \label{fig:nucleosome}
+\end{figure}
+
+\subsection{Histone modifications}
+
+Histones carry chemical modifications on specific amino acids, mostly on their flexible tails. Two common types are \emph{methylation}, the addition of a methyl group, and \emph{acetylation}, the addition of an acetyl group. Acetylation is generally associated with active, open chromatin, while the consequence of methylation depends on which residue is modified: some methylation marks indicate activity and others repression. The combinations of marks are sometimes called the \emph{histone code}~\citep{strahl2000,kouzarides2007}. Marks are named by the histone, the residue and the modification. For example, H3K27ac denotes acetylation (ac) of the lysine (K) at position 27 of histone H3, and H3K4me3 denotes trimethylation of lysine 4 of H3. Table~\ref{tab:histone_marks} lists the marks most often profiled, which include the core set measured by the Roadmap Epigenomics project (Section~\ref{sec:consortia}).
+
+\begin{table}[t]
+  \centering
+  \caption{Commonly profiled histone modifications and the chromatin states they mark. The associations are typical rather than absolute.}
+  \label{tab:histone_marks}
+  \begin{tabular}{ll}
+    \toprule
+    Mark & Typical association \\
+    \midrule
+    H3K4me3 & active and poised promoters \\
+    H3K4me1 & enhancers (active or primed) \\
+    H3K27ac & active enhancers and promoters \\
+    H3K36me3 & bodies of transcribed genes \\
+    H3K27me3 & Polycomb repression, developmentally silenced genes \\
+    H3K9me3 & heterochromatin, repeats \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Histone modifications are measured genome-wide with \emph{chromatin immunoprecipitation followed by sequencing} (ChIP-seq), the same assay used in Chapter 2 to measure transcription factor (TF) binding. Chromatin is crosslinked and fragmented, an antibody specific to the modified histone pulls down the fragments that carry it, and the fragments are sequenced and aligned. Regions where reads pile up carry the mark. The antibody is raised the same way as for a TF, by immunizing an animal with the modified histone. Like TF binding, histone marks differ between cell types and between healthy and diseased cells, for example in cancer.
+
+\subsection{Chromatin accessibility}
+
+DNA wrapped tightly around nucleosomes, or packed into dense higher-order structures, is \emph{closed} or \emph{inaccessible}: a TF cannot physically reach a binding site there, however good a match to its motif the site is. Regions with few or no nucleosomes are \emph{open} or \emph{accessible}. Active promoters and enhancers are typically accessible, because TFs and RNA polymerase II, the enzyme that transcribes genes into RNA, need to reach them. Most of the genome is closed in any given cell type; only a few percent is accessible.
+
+\emph{ATAC-seq} (assay for transposase-accessible chromatin using sequencing) measures accessibility~\citep{buenrostro2013} (Figure~\ref{fig:atac}). The Tn5 transposase, loaded with sequencing adapters, cuts DNA and inserts the adapters at the cut site in a single step, a process called tagmentation. Tn5 can only reach naked DNA, so cuts are concentrated in open chromatin, and in the linker DNA between nucleosomes. Amplifying and sequencing the tagged fragments, and aligning the reads, gives a map of accessibility. The simplest analysis is the same as for ChIP-seq: call peaks where reads pile up. ATAC-seq works on small numbers of cells and is commercially available in a single-cell form. Its predecessor, \emph{DNase-seq}, uses the nuclease DNase I in place of Tn5 to digest accessible DNA; the accessible regions it finds are called \emph{DNase I hypersensitive sites} (DHSs)~\citep{boyle2008}. DNase-seq requires many more cells. Other assays of open chromatin, such as MNase-seq and FAIRE-seq, differ in how they fragment and enrich the DNA (Figure~\ref{fig:modalities}).
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    \tikzset{nuc/.style={draw, fill=orange!30, ellipse, minimum width=0.32cm, minimum height=0.55cm, inner sep=0}}
+    \tikzset{tn5/.style={draw, fill=teal!50, regular polygon, regular polygon sides=3, minimum size=0.35cm, inner sep=0}}
+    \foreach \y/\lab in {0/{}, -1.5/{}, -3.0/{}} {
+      \draw[thick] (0,\y) -- (10,\y);
+      \foreach \x in {0.4,0.75,...,3.6} \node[nuc] at (\x,\y) {};
+      \foreach \x in {5.0,7.0,8.9} \node[nuc] at (\x,\y) {};
+    }
+    \node[above] at (2.0,0.35) {closed chromatin};
+    \node[above] at (7.0,0.35) {open chromatin};
+    % Tn5
+    \foreach \x in {4.2,6.1,8.0,9.6} \node[tn5] at (\x,-1.1) {};
+    \node[tn5] at (2.0,-0.95) {};
+    \node[above, red!70!black, font=\footnotesize] at (2.0,-0.8) {blocked};
+    \node[left] at (-0.1,-1.5) {Tn5 $\blacktriangle$};
+    % cut fragments
+    \foreach \x in {4.2,6.1,8.0,9.6} {
+      \fill[white] (\x-0.08,-3.06) rectangle (\x+0.08,-2.94);
+      \draw[very thick, red!70!black] (\x-0.25,-3.0) -- (\x-0.08,-3.0);
+      \draw[very thick, blue!70!black] (\x+0.08,-3.0) -- (\x+0.25,-3.0);
+    }
+    \node[left] at (-0.1,-3.0) {adapters inserted};
+    \draw[->, thick] (7.0,-3.4) -- (7.0,-4.0) node[right] {amplify and sequence};
+  \end{tikzpicture}
+  \caption{ATAC-seq. The Tn5 transposase (triangles) cuts accessible DNA and inserts sequencing adapters (red and blue) in one step. Nucleosome-dense, closed chromatin is protected, as is the $\sim$147\,bp of DNA wrapped around each nucleosome. Sequencing the tagged fragments maps accessible regions. DNase-seq follows the same logic with the nuclease DNase I.}
+  \label{fig:atac}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.55\linewidth]{slides/assay_modalities.jpg}
+  \caption{Sequencing assays of chromatin: ChIP-seq, DNase-seq, ATAC-seq, MNase-seq and FAIRE-seq differ in how chromatin is fragmented and enriched before amplification, sequencing and mapping. Reproduced from \citet{meyer2014}.}
+  \label{fig:modalities}
+\end{figure}
+
+The assays give complementary views of the same regulatory element (Figure~\ref{fig:assay_profiles}). Consider a TF bound in a nucleosome-depleted region flanked by nucleosomes carrying H3K27ac. ChIP-seq for the TF gives a sharp peak at the binding site. DNase-seq or ATAC-seq gives a broader peak covering the whole nucleosome-depleted region, with a dip at the binding site itself, because the bound TF protects its few base pairs of DNA from cutting. This dip is called a \emph{footprint}, and footprinting methods use it to locate bound TFs from accessibility data alone. ChIP-seq for H3K27ac gives a bimodal signal from the modified nucleosomes on either side, with little signal at the centre where there are no nucleosomes. Two further modalities, DNA methylation (methyl groups added to the DNA itself, distinct from histone methylation) and chromatin conformation measured by Hi-C, appear later in this chapter and the book.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.7\linewidth]{assay_profiles.pdf}
+  \caption{Simulated read coverage at one regulatory element, a TF bound in a nucleosome-depleted region with acetylated flanking nucleosomes. TF ChIP-seq gives a narrow peak at the binding site. Accessibility assays give a broad peak over the nucleosome-free region with a footprint (dip) where the TF protects the DNA, and weak signal in the linker DNA between nucleosomes. H3K27ac ChIP-seq gives signal on the flanking nucleosomes.}
+  \label{fig:assay_profiles}
+\end{figure}
+
+%======================================================================
+\section{Regulatory elements: promoters and enhancers}
+\label{sec:enhancers}
+%======================================================================
+
+\emph{Regulatory elements} are stretches of DNA that are not themselves transcribed into protein-coding RNA but where TFs bind and control how much nearby genes are transcribed. The \emph{promoter} is the regulatory element immediately around a gene's transcription start site (TSS), where RNA polymerase II assembles. \emph{Enhancers} are regulatory elements further from the gene, up to around a megabase away along the linear genome. They act on their target gene through the three-dimensional folding of chromatin: a \emph{loop} brings the enhancer into physical proximity with the promoter (Figure~\ref{fig:loop}). Proteins bridge the two. The Mediator complex binds both the TFs at the enhancer and RNA polymerase II at the promoter, and the ring-shaped cohesin complex extrudes and holds loops, often anchored at sites bound by the protein CTCF.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    \tikzset{nuc/.style={draw, fill=blue!25, circle, minimum size=0.42cm, inner sep=0}}
+    % loop
+    \draw[thick] (3,0) ++(20:2.8 and 1.8) arc[start angle=20, end angle=340, x radius=2.8, y radius=1.8];
+    \foreach \a in {55,95,135,175,215,255,295} \node[nuc] at ({3+2.8*cos(\a)},{1.8*sin(\a)}) {};
+    % right strands
+    \draw[thick] (5.63,0.62) -- (10.2,0.62);
+    \draw[thick] (5.63,-0.62) -- (10.2,-0.62);
+    \node[nuc] at (9.7,0.62) {};
+    % enhancer
+    \draw[fill=gray!30] (6.3,0.5) rectangle (7.6,0.74);
+    \node[above] at (6.95,0.74) {enhancer};
+    \foreach \x/\c in {6.5/orange, 6.75/orange, 7.15/green!60!black, 7.4/green!60!black} \draw[fill=\c] (\x,0.47) circle (0.11);
+    \node[font=\footnotesize, orange!80!black] (tfl) at (9.0,1.25) {activating TFs};
+    \draw[orange!80!black] (tfl.south west) -- (7.5,0.55);
+    % mediator
+    \draw[fill=violet!40] (6.95,0.0) ellipse (0.72cm and 0.27cm);
+    \node[font=\footnotesize] at (6.95,0.0) {Mediator};
+    % pol II and gene
+    \draw[fill=red!40] (7.0,-0.64) ellipse (0.45cm and 0.27cm);
+    \node[font=\footnotesize] at (7.0,-0.64) {Pol II};
+    \draw[fill=gray!40] (7.6,-0.74) rectangle (9.5,-0.5);
+    \node[below] at (8.55,-0.8) {gene A};
+    \draw[->, thick] (7.6,-0.5) -- (7.6,-0.25) -- (8.0,-0.25);
+    \node[below] at (7.0,-0.92) {promoter};
+    % cohesin
+    \draw[green!40!black, very thick] (5.85,0) ellipse (0.16cm and 0.85cm);
+    \node[green!40!black] (coh) at (5.3,-1.75) {cohesin};
+    \draw[green!40!black] (coh.north east) -- (5.85,-0.86);
+    \node (nl) at (1.2,2.4) {nucleosomes};
+    \draw[->] (nl.east) -- (2.55,1.85);
+  \end{tikzpicture}
+  \caption{An enhancer regulates gene A through a chromatin loop that brings it close to the promoter. Activating TFs bound at the enhancer contact RNA polymerase II (Pol II) at the promoter through the Mediator complex. Cohesin holds the loop. Redrawn after a schematic used in the lecture slides.}
+  \label{fig:loop}
+\end{figure}
+
+The scale of these structures differs by orders of magnitude. A nucleosome wraps about 150\,bp. Enhancer-promoter loops typically span thousands to hundreds of thousands of base pairs. A gene is usually controlled by many enhancers, often tens, and several genes and enhancers can meet at one place in the nucleus, sometimes called a transcription factory or hub. Enhancer-gene connections can also be disrupted: in some cancers, structural changes to the genome connect an enhancer to an oncogene it would not normally regulate, driving its expression.
+
+\subsection{One genome, many cell types}
+
+Understanding how cells with the same genome become so different is one of the central problems of biology, and the answer is written in the genome through regulatory elements. The fruit fly \textit{Drosophila melanogaster} has provided many of the clearest examples. About two to three hours after fertilization, the embryo is a single layer of around 6000 nuclei, and the pair-rule gene \textit{even-skipped} (\textit{eve}) is expressed in seven stripes along its anterior-posterior axis. The stripes foreshadow the body segments, which do not appear until hours later. Each stripe, or pair of stripes, is driven by its own enhancer; five enhancers, located upstream and downstream of the gene, produce the seven stripes.
+
+The stripe 2 enhancer, about 500\,bp long and located roughly 1 to 1.5\,kb upstream of the TSS, is the best studied~\citep{small1992}. It contains a cluster of binding sites for both activators and repressors. The maternal activator Bicoid, whose concentration decays from the anterior end, and Hunchback, which is high in the anterior half, together switch the enhancer on across a broad anterior domain. Repressors bound to the same enhancer then cut this domain down to a stripe: Giant sets the anterior border and Kr\"uppel the posterior border. The enhancer thus integrates positive and negative inputs into a sharp on/off stripe of transcription. Figure~\ref{fig:eve} shows this logic in a toy model, where enhancer activity is a logistic function of the weighted sum of activator concentrations minus that of repressor concentrations. Separate enhancers act independently, so the full seven-stripe pattern is roughly the sum of the patterns of the individual enhancers.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{eve_stripe2.pdf}
+  \caption{Toy model of the \textit{eve} stripe 2 enhancer. Top: idealized concentration profiles of two activators (Bicoid, Hunchback) and two repressors (the anterior domain of Giant, simplified here to extend to the anterior tip, and Kr\"uppel) along the embryo. Bottom: enhancer activity, modelled as $\sigma(w(\text{activators}-\text{repressors})-\theta)$, is on only in a narrow stripe where activators are high and both repressors are low.}
+  \label{fig:eve}
+\end{figure}
+
+The general lessons carry over to all multicellular organisms:
+\begin{itemize}
+  \item Enhancer-gene connectivity can change, for example during development or in disease.
+  \item An enhancer usually contains binding sites for several TFs, which bind cooperatively.
+  \item These TFs can be activating or repressive.
+  \item TF expression, and therefore activity, varies in space and time, so the same enhancer sequence is active in some cells and not others.
+\end{itemize}
+The resulting picture is a regulatory network: TF levels determine which enhancers are active, enhancers determine which genes are expressed, and some of those genes are themselves TFs.
+
+%======================================================================
+\section{Mapping the regulatory genome: ENCODE and Roadmap}
+\label{sec:consortia}
+%======================================================================
+
+The first draft of the human genome sequence was published in 2001, but a sequence is not an explanation: as Eric Lander put it, we had bought the book but found it hard to read. Two large consortia funded by the US National Institutes of Health set out to annotate it. The Encyclopedia of DNA Elements (ENCODE) has generated thousands of ChIP-seq experiments, for histone marks and for many TFs, together with RNA-seq, DNase-seq and, later, ATAC-seq, across many cell types~\citep{encode2012}. Most ENCODE samples are cell lines, including the cancer cell lines of Chapter 1, and a few workhorse lines such as K562 (a leukaemia line) and HepG2 (a liver cancer line) have been profiled very deeply, including with knockdown experiments that perturb individual genes. The Roadmap Epigenomics project had similar aims but focused on \emph{primary} samples, cells and tissues taken directly from donors, across essentially all organ systems and including fetal tissues~\citep{roadmap2015}. Its reference epigenomes cover more than 100 cell and tissue types, each profiled with ChIP-seq for a core set of histone marks (Table~\ref{tab:histone_marks}), DNase-seq for accessibility, whole-genome or reduced-representation bisulfite sequencing for DNA methylation, and RNA-seq for expression.
+
+\subsection{The data as a tensor}
+
+The data from these projects can be organized as a three-way array, or tensor (Figure~\ref{fig:tensor}). One axis is genomic position, about $3\times10^9$ base pairs, usually binned. The second is the assay, or \emph{track}: ChIP-seq for each TF and each histone mark, accessibility, methylation, RNA-seq. The third is the cell type or tissue. The tensor has hundreds of entries along each of the last two axes, and many of them are missing, in a structured way: a few cell lines have hundreds of tracks while most cell types and tissues have only a handful, often just accessibility and RNA-seq. Several computational problems arise:
+\begin{itemize}
+  \item \emph{Denoising}: sequencing assays are noisy, especially at low depth.
+  \item \emph{Imputation}: predicting the missing (cell type, assay) combinations from the observed ones, for example by exploiting correlations between marks and between related cell types~\citep{ernst2015}.
+  \item \emph{Identifying regulatory elements}: segmenting the genome into promoters, enhancers and other states in each cell type. We return to this in the chapter on hidden Markov models.
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}, x={(1cm,0cm)}, y={(0cm,1cm)}, z={(0.45cm,0.35cm)}]
+    % cube: x = genome, y = cell type, z = assay
+    \def\X{7} \def\Y{2.6} \def\Z{4}
+    \draw[fill=gray!8] (0,0,0) -- (\X,0,0) -- (\X,\Y,0) -- (0,\Y,0) -- cycle;
+    \draw[fill=gray!15] (0,\Y,0) -- (\X,\Y,0) -- (\X,\Y,\Z) -- (0,\Y,\Z) -- cycle;
+    \draw[fill=gray!25] (\X,0,0) -- (\X,0,\Z) -- (\X,\Y,\Z) -- (\X,\Y,0) -- cycle;
+    % observed slices (a few deeply profiled cell types)
+    \foreach \y in {2.2,1.8} \fill[blue!40, opacity=0.8] (0,\y,0) -- (\X,\y,0) -- (\X,\y+0.25,0) -- (0,\y+0.25,0) -- cycle;
+    \foreach \y in {0.3,0.9,1.3} \fill[blue!40, opacity=0.8] (0,\y,0) -- (2.2,\y,0) -- (2.2,\y+0.2,0) -- (0,\y+0.2,0) -- cycle;
+    \node[below] at (\X/2,0,0) {genomic position ($\sim3\times10^9$ bp)};
+    \node[rotate=90, above] at (0,\Y/2,0) {cell types / tissues};
+    \node[anchor=north west] at (\X,0,\Z/2) {assays (tracks)};
+    \node[align=left, right, font=\footnotesize] at (10.4,2.2) {shaded: observed\\ e.g.\ K562, HepG2:\\ many tracks;\\ most cell types:\\ few tracks};
+  \end{tikzpicture}
+  \caption{Epigenomic data as a tensor indexed by genomic position, assay and cell type. Coverage is uneven: a few cell lines are profiled with hundreds of assays, most cell types with only a few, leaving a large, structured set of missing entries to impute.}
+  \label{fig:tensor}
+\end{figure}
+
+\subsection{Cell-type-specific regulatory elements}
+
+Figure~\ref{fig:roadmap_enhancers} shows the activity of about two million enhancers (columns) across 127 reference epigenomes (rows) from Roadmap and ENCODE~\citep{roadmap2015}. The columns are clustered by their activity pattern, not ordered by genomic position, which produces a block structure. Some enhancers are active in many cell types, but most are specific to one lineage. Embryonic and induced pluripotent stem cells share a block of elements, blood cells another. Within blood, T cells have a set of elements active in all T cell samples, part of which is shared with the closely related B cells, while other elements distinguish the two. The genes near each cluster are enriched for biological processes that match the cell types in which the cluster is active, for example immune response genes near the T cell enhancers.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{slides/roadmap_enhancer_activity.png}
+  \caption{Enhancer activity across 127 reference epigenomes. (a) Rows are epigenomes grouped by tissue or cell type; columns are about two million enhancers, clustered by activity (orange, active). (b) Enrichment of Gene Ontology biological processes and (c) phenotypes among genes near each enhancer cluster. Reproduced from \citet{roadmap2015}.}
+  \label{fig:roadmap_enhancers}
+\end{figure}
+
+These maps matter for human genetics. Genetic variants associated with disease in genome-wide association studies lie mostly outside protein-coding sequence, and they are enriched in regulatory elements active in cell types relevant to the disease~\citep{maurano2012}. Variants associated with autoimmune diseases, for example, are enriched in T cell and B cell enhancers. Knowing where the regulatory elements are in each cell type is a first step to explaining how a non-coding variant changes disease risk; the sequence models below are a second.
+
+\subsection{How much of the genome is functional?}
+
+Table~\ref{tab:functional} summarizes how much of the genome is covered by various biochemical signals when they are aggregated across hundreds of cell types~\citep{kellis2014}. Only about 1\% of the genome codes for protein. Up to a fifth is accessible or bound by some TF in some cell type, more than half carries some histone modification, and most of the genome is transcribed at some point. ENCODE's flagship paper argued that most of the genome, around 80\%, has a ``biochemical function''~\citep{encode2012}. Evolutionary biologists objected~\citep{graur2013}. Comparing the human genome with those of other mammals shows which sequences are conserved, and therefore under \emph{purifying selection}, which removes mutations that harm the organism. Without selection, sequence diverges over evolutionary time. These comparisons suggest that only 3--8\% of the genome is under selection. The two estimates use different definitions of function: biochemical activity does not imply that the activity matters for the organism. The truth is likely between them. Some functional elements are not conserved, for example because they are recent in evolution, but a histone mark or a transcript does not on its own show that a region is important.
+
+\begin{table}[t]
+  \centering
+  \caption{Fraction of the human genome covered by biochemical signals, aggregated across hundreds of cell types, and the fraction estimated to be under purifying selection. Values from \citet{kellis2014}.}
+  \label{tab:functional}
+  \begin{tabular}{lr}
+    \toprule
+    Biochemical mark or element & Genomic coverage \\
+    \midrule
+    Protein-coding exons (GENCODE) & 1.2\% \\
+    Under purifying selection & 3--8\% \\
+    Regulatory elements (accessible or TF-bound) & 12--19\% \\
+    Any histone modification & 56\% \\
+    Transcribed in some cell type & 62\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%======================================================================
+\section{Predicting chromatin accessibility from sequence}
+\label{sec:basset}
+%======================================================================
+
+If accessibility in each cell type is determined by which TFs are present and which binding sites the sequence contains, then a model that reads DNA sequence should be able to predict accessibility. Chapter 2 developed convolutional neural networks (CNNs) for predicting TF binding from sequence; here we apply the same machinery to accessibility, across many cell types at once.
+
+\subsection{Basset: a multitask CNN}
+
+Basset~\citep{kelley2016} predicts DNase I hypersensitivity in 164 cell types from 600\,bp of sequence. The training examples are about two million DHSs, the union of peaks across all cell types. Let $N$ be the number of training sequences, $T=164$ the number of cell types (\emph{tasks}), and $L=600$ the sequence length. Sequence $n$ is one-hot encoded as $\mX_n\in\{0,1\}^{L\times 4}$, whose $i$-th row $\vx_{n,i}^\top$ has a single 1 in the column of the nucleotide at position $i$ (A, C, G, T). The label $y_{nt}\in\{0,1\}$ is 1 if sequence $n$ is accessible in cell type $t$. Each sequence thus has a binary vector of labels, and the matrix of labels across all sequences has the sparse, block structure of Figure~\ref{fig:roadmap_enhancers}.
+
+The architecture is the CNN of Chapter 2 (Figure~\ref{fig:basset_arch}). The first convolutional layer has $D_1$ filters of width $k$; filter $c$ has weights $\mW_c\in\R^{k\times 4}$ and bias $b_c$, and its output at position $i$ is
+\begin{equation}
+  z_{i,c} = \sum_{\ell=1}^{k}\sum_{u=1}^{4} W_{c,\ell u}\,X_{n,i+\ell-1,u} + b_c ,
+\end{equation}
+which is the score of a position weight matrix (PWM) $\mW_c$ at position $i$, as in Chapter 2. A rectified linear unit $\max(0,z_{i,c})$ thresholds the scores, and max pooling over windows of adjacent positions reduces the length and makes the representation insensitive to the exact location of a motif. Basset stacks three convolution-ReLU-pooling blocks, with 300 filters of width 19 in the first layer, followed by two fully connected layers. The output layer has one unit per cell type, $\hat y_{nt}=\sigma(f_t(\mX_n))\in(0,1)$, where $f_t$ is the network's output for task $t$ and $\sigma$ is the logistic function. All tasks share every layer except the last, so features learned for one cell type help the others; this is \emph{multitask learning}. The loss is the binary cross-entropy of Chapter 1, summed over sequences and tasks,
+\begin{equation}
+  \mathcal{L} = -\sum_{n=1}^N\sum_{t=1}^T\left[y_{nt}\log\hat y_{nt} + (1-y_{nt})\log(1-\hat y_{nt})\right],
+\end{equation}
+and it is minimized by stochastic gradient descent with backpropagation.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}, box/.style={draw, rounded corners, minimum height=0.9cm, align=center, inner sep=4pt}]
+    \node[box, fill=orange!15] (in) {one-hot\\sequence\\$600\times4$};
+    \node[box, fill=blue!10, right=0.5cm of in] (c1) {conv (300 filters,\\ width 19), ReLU,\\ max pool};
+    \node[box, fill=blue!10, right=0.5cm of c1] (c2) {conv, ReLU,\\ max pool\\ ($\times2$)};
+    \node[box, fill=green!10, right=0.5cm of c2] (fc) {fully\\connected\\($\times2$)};
+    \node[box, fill=violet!10, right=0.5cm of fc] (out) {164 sigmoid\\outputs\\(cell types)};
+    \foreach \a/\b in {in/c1, c1/c2, c2/fc, fc/out} \draw[->, thick] (\a) -- (\b);
+  \end{tikzpicture}
+  \caption{The Basset architecture~\citep{kelley2016}. A one-hot encoded 600\,bp sequence passes through three convolution-ReLU-max-pooling blocks and two fully connected layers. The output layer predicts, for each of 164 cell types, the probability that the sequence is a DNase I hypersensitive site.}
+  \label{fig:basset_arch}
+\end{figure}
+
+\subsection{Why a CNN beats k-mer counting}
+
+The previous state of the art represented each sequence by its counts of \emph{k-mers}, the substrings of length $k$ (or gapped versions of them), and fitted a support vector machine (gkm-SVM)~\citep{ghandi2014}. Basset improved the area under the ROC curve (Chapter 1) in almost every cell type, from a mean of 0.780 to 0.895 (Figure~\ref{fig:basset_results}a). A k-mer representation is the sequence analogue of a bag of words in document classification: it records which words occur but not where. A CNN can model where they occur. Deeper layers can combine motif detections from the first layer, so the model can learn interactions between motifs, such as two TFs that bind cooperatively, and their \emph{grammar}: the required order, orientation and spacing of the motifs.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.36\linewidth}
+    \includegraphics[width=\linewidth]{slides/basset_auc.png}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.6\linewidth}
+    \includegraphics[width=\linewidth]{slides/basset_filters.png}
+    \caption{}
+  \end{subfigure}
+  \caption{Basset results. (a) Area under the ROC curve per cell type for Basset against the gapped k-mer SVM (gkm-SVM). (b) First-layer filters, displayed as sequence logos, beside the best-matching known TF motif from the CIS-BP database. Reproduced from \citet{kelley2016}.}
+  \label{fig:basset_results}
+\end{figure}
+
+\subsection{First-layer filters are motifs}
+
+Because a first-layer filter computes a PWM score at every position, each filter can be visualized as a motif. Basset did so by collecting the sequence windows that activate a filter most strongly and summarizing them as a position frequency matrix. About 45\% of the 300 first-layer filters matched a known TF motif in the CIS-BP database~\citep{weirauch2014}, including CTCF, the AP-1 factor FOS, HNF4A and FOXA2 (Figure~\ref{fig:basset_results}b). The model learned these motifs from accessibility data alone, without being given any known motifs. The unmatched filters may be redundant or unused, may capture partial motifs that deeper layers assemble, or may correspond to TFs whose motifs are not in the database. Not every architecture learns such readable first-layer filters; Chapter 4 discusses this and other interpretation methods.
+
+\subsection{In silico mutagenesis and genetic variants}
+\label{sec:ism}
+
+A trained model can predict the effect of changing the sequence. A \emph{genetic variant} is an inherited difference between individuals; the most common type is a \emph{single nucleotide polymorphism} (SNP), a single position at which people carry different nucleotides (\emph{alleles}). SNPs have identifiers of the form rs followed by a number, which index the dbSNP database. A \emph{mutation}, by contrast, is a new change, such as a somatic mutation in a tumour. To predict a variant's effect, we compare the model's predictions for the sequences carrying each allele.
+
+\emph{In silico mutagenesis} (ISM) does this systematically. For a sequence $\mX$ and output $f$ (for example the predicted accessibility logit in one cell type), let $\mX^{(i\to u)}$ be the sequence with position $i$ changed to nucleotide $u$. The ISM score is
+\begin{equation}
+  \Delta_{iu} = f\big(\mX^{(i\to u)}\big) - f(\mX), \qquad i=1,\dots,L,\quad u\in\{\text{A},\text{C},\text{G},\text{T}\},
+\end{equation}
+an $L\times4$ matrix that is zero at the reference nucleotides. Computing it costs $3L$ forward passes. Figure~\ref{fig:basset_ism} shows ISM around the SNP rs4409785, which is associated with vitiligo, rheumatoid arthritis and multiple sclerosis~\citep{kelley2016}. With the reference allele T, almost no single change matters. Changing the T to the alternative allele C sharply increases predicted accessibility, because it completes a strong match to the CTCF motif. ISM on the sequence carrying the C allele then shows that the surrounding nucleotides matter too: mutating the rest of the CTCF motif abolishes the predicted gain. Such analyses suggest which TF a variant affects, which can then be checked against databases of known motifs and tested experimentally. We return to methods for explaining model predictions, of which ISM is the simplest, in Chapter 4.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\linewidth]{slides/basset_ism.pdf}
+  \caption{In silico mutagenesis around SNP rs4409785. Top: the reference sequence and the predicted change in accessibility for each possible single-nucleotide change (rows A, C, G, T); only the T$\to$C change at the SNP has a large effect. Bottom: with the C allele, the sequence logo (letter heights proportional to the effect of mutating that position) and heatmap reveal a CTCF motif around the variant. Reproduced from \citet{kelley2016}.}
+  \label{fig:basset_ism}
+\end{figure}
+
+%======================================================================
+\section{The limited reach of convolutions}
+\label{sec:receptive}
+%======================================================================
+
+The \emph{receptive field} of a unit in a CNN is the set of input positions that can affect it. A convolution of width $k$ is local: a unit in the first layer sees $k$ positions, and each further layer of width-$k$ convolutions extends the receptive field by $k-1$ positions of the layer below (Figure~\ref{fig:cnn_attention}a). Let $r_d$ be the receptive field after $d$ layers, measured in input positions, and $\delta_d$ the spacing, in input positions, between adjacent units of layer $d$ (the product of the strides and pooling sizes up to layer $d$, with $\delta_0=1$ and $r_0=1$). Then
+\begin{equation}
+  r_d = r_{d-1} + (k-1)\,\delta_{d-1}.
+\end{equation}
+For stride-one convolutions without pooling, $\delta_d=1$ and $r_d=1+d(k-1)$, which grows linearly with depth: doubling the context means doubling the number of layers. Max pooling with window and stride 2 after each layer doubles $\delta$ at each layer, so the receptive field grows exponentially, at the price of halving the resolution each time. \emph{Dilated} convolutions~\citep{yu2016}, used in Basenji~\citep{kelley2018}, skip input positions: a width-$k$ filter with dilation $2^{d-1}$ at layer $d$ applies its weights to positions $2^{d-1}$ apart, so $r_d=1+(k-1)(2^d-1)$, also exponential, without losing resolution (Figure~\ref{fig:receptive_field}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.65\linewidth]{receptive_field.pdf}
+  \caption{Receptive field against depth for width-5 convolutions: stride-one convolutions (linear growth), convolutions each followed by max pooling of width 2, and dilated convolutions with dilation doubling at each layer (both exponential). Enhancers act on genes over distances of $10^4$ to $10^5$\,bp or more.}
+  \label{fig:receptive_field}
+\end{figure}
+
+This matters because enhancers can act on genes tens or hundreds of kilobases away. In the language analogy, predicting the next word well needs the whole paragraph or chapter, not just the current sentence. Even with an exponentially growing receptive field, information from distant positions has to pass through many layers before it can interact, and the convolution weights treat each relative offset in the same fixed way regardless of what the sequence contains. Attention removes both restrictions.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    \tikzset{u/.style={draw, circle, minimum size=0.42cm, inner sep=0, fill=blue!10}}
+    % (a) CNN
+    \node at (-0.6,3.2) {(a)};
+    \foreach \x in {0,...,8} \node[u, fill=white] (a0\x) at (0.6*\x,0) {};
+    \foreach \x in {1,...,7} \node[u] (a1\x) at (0.6*\x,1.2) {};
+    \foreach \x in {2,...,6} \node[u] (a2\x) at (0.6*\x,2.4) {};
+    \node[u, fill=blue!40] (top) at (2.4,2.4) {};
+    \foreach \x in {3,4,5} \draw[->, thick] (a1\x) -- (top);
+    \foreach \x/\y in {2/3,3/3,4/3,3/4,4/4,5/4,4/5,5/5,6/5} \draw[->, gray] (a0\x) -- (a1\y);
+    \fill[blue!10, opacity=0.4] (1.0,-0.3) rectangle (3.8,0.3);
+    \node[right] at (5.0,0) {input};
+    \node[right] at (4.4,1.2) {layer 1};
+    \node[right] at (4.0,2.4) {layer 2};
+    \draw[decorate, decoration={brace, mirror, amplitude=3pt}] (1.05,-0.35) -- (3.75,-0.35) node[midway, below=3pt, font=\footnotesize] {receptive field $r_2=5$};
+    % (b) conv + attention
+    \begin{scope}[xshift=7.2cm]
+      \node at (-0.6,3.2) {(b)};
+      \foreach \x in {0,...,8} \node[u, fill=white] (b0\x) at (0.6*\x,0) {};
+      \foreach \x in {0,...,8} \node[u] (b1\x) at (0.6*\x,1.2) {};
+      \foreach \x in {0,...,8} \draw[->, gray!60] (b0\x) -- (b1\x);
+      \node[u, fill=yellow!60] (q) at (1.8,2.6) {};
+      \foreach \x/\w in {0/0.4, 1/1.2, 2/0.6, 3/2.0, 4/0.4, 5/0.3, 6/0.5, 7/1.8, 8/0.6} \draw[->, line width=\w pt, blue!60!black] (b1\x) -- (q);
+      \node[right] at (5.3,0) {sequence};
+      \node[right, align=left] at (5.3,1.2) {conv.\\[-2pt] layers};
+      \node[right] at (2.1,2.65) {attention};
+    \end{scope}
+  \end{tikzpicture}
+  \caption{(a) In a CNN with width-3 convolutions, a unit in layer 2 depends on five input positions; its receptive field grows by two positions per layer. (b) In a hybrid model, convolutional layers extract local features and an attention layer lets each position draw on every position in the sequence. Edge widths illustrate the attention weights of one position (yellow), which can be large for distant positions.}
+  \label{fig:cnn_attention}
+\end{figure}
+
+%======================================================================
+\section{Attention and transformers}
+\label{sec:attention}
+%======================================================================
+
+Transformers~\citep{vaswani2017} are the architecture behind modern large language models: the T in GPT stands for transformer. Their central component is \emph{attention}, a layer in which every position in a sequence can take information from every other position, with weights that depend on the input itself. Figure~\ref{fig:attention_matrices} contrasts the two. A width-3 convolution, viewed as a matrix whose entry $(i,j)$ says how much output position $i$ uses input position $j$, is banded: each row draws only on three neighbouring positions, and the pattern is the same for every input. An attention matrix is dense, and it is recomputed for each input sequence. This section derives the attention layer, following the standard formulation (see also Section 15.4 of \citealp{murphy2022}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{attention_matrices.pdf}
+  \caption{Which positions of the previous layer each position of the next layer draws on. Left: a width-3 convolution, with uniform weights for display, is a fixed banded pattern. Right: a self-attention matrix $\mA$ computed from a random input and random projections; each row is a probability vector over all $L=12$ positions and changes with the input.}
+  \label{fig:attention_matrices}
+\end{figure}
+
+\subsection{Self-attention}
+
+Let $L$ be the sequence length and $D$ the number of channels. The input to an attention layer is a matrix $\mH\in\R^{L\times D}$ whose $i$-th row $\vh_i^\top$ is the representation of position $i$; in a genomic model $\vh_i$ might be the output of convolutional layers at position $i$. We want, for each pair of positions $(i,j)$, a weight $a_{ij}\geq0$ that says how much position $i$ attends to, or takes information from, position $j$. The weight should depend on both $\vh_i$ and $\vh_j$, and the weights for each $i$ should sum to one over $j$, so that each position has a fixed budget of attention to spend across the sequence.
+
+From each position we compute three vectors by linear maps (Figure~\ref{fig:attention_diagram}),
+\begin{equation}
+  \underbrace{\vq_i}_{P\times1} = \underbrace{\mW^Q}_{P\times D}\underbrace{\vh_i}_{D\times1}, \qquad
+  \vk_j = \mW^K\vh_j \in\R^P, \qquad
+  \vv_j = \mW^V\vh_j \in\R^{D_v},
+\end{equation}
+called the \emph{query}, \emph{key} and \emph{value}. The parameters of the layer are the matrices $\mW^Q,\mW^K\in\R^{P\times D}$ and $\mW^V\in\R^{D_v\times D}$; $\mW^Q$ and $\mW^K$ have the same shape but are different matrices. The query and key dimension $P$ and the value dimension $D_v$ are hyperparameters, often both equal to $D$. Position $i$ should attend to position $j$ when its query matches the key of $j$, measured by the scaled inner product
+\begin{equation}
+  s_{ij} = \frac{\vq_i^\top\vk_j}{\sqrt{P}} .
+\end{equation}
+The scores $s_{ij}$ can be positive or negative and do not sum to one, so we normalize each row with the softmax function of Chapter 1,
+\begin{equation}
+  a_{ij} = \softmax_j(\vs_{i})_j = \frac{\exp(s_{ij})}{\sum_{j'=1}^L\exp(s_{ij'})},
+  \label{eq:attn_softmax}
+\end{equation}
+where $\vs_i\in\R^L$ is the vector of scores of query $i$ against all keys. The output at position $i$ is the attention-weighted average of the values,
+\begin{equation}
+  \underbrace{\vg_i}_{D_v\times1} = \sum_{j=1}^{L} \underbrace{a_{ij}}_{1\times1}\,\underbrace{\vv_j}_{D_v\times1} .
+  \label{eq:attn_output}
+\end{equation}
+The sum includes $j=i$, so a position can keep its own information. In the next layer, $\vg_i$ replaces $\vh_i$. Because queries, keys and values are all computed from the same sequence, this is called \emph{self-attention}.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    \tikzset{vec/.style={draw, minimum width=0.35cm, minimum height=1.0cm, inner sep=0}}
+    \node[vec, fill=gray!15, label=above:$\vh_1$] (h1) at (0,0) {};
+    \node[vec, fill=gray!15, label=above:$\vh_2$] (h2) at (4.5,0) {};
+    \node at (6.5,0) {$\cdots$};
+    \node[vec, fill=gray!15, label=above:$\vh_L$] (hL) at (8,0) {};
+    \node (q1) at (-1.0,-1.8) {$\vq_1$}; \node (k1) at (0,-1.8) {$\vk_1$}; \node (v1) at (1.0,-1.8) {$\vv_1$};
+    \node (q2) at (3.5,-1.8) {$\vq_2$}; \node (k2) at (4.5,-1.8) {$\vk_2$}; \node (v2) at (5.5,-1.8) {$\vv_2$};
+    \draw[->] (h1) -- (q1); \draw[->] (h1) -- (k1); \draw[->] (h1) -- (v1);
+    \node[font=\footnotesize, align=left] at (2.3,-0.9) {$\vq_i=\mW^Q\vh_i$\\ $\vk_i=\mW^K\vh_i$\\ $\vv_i=\mW^V\vh_i$};
+    \draw[->] (h2) -- (q2); \draw[->] (h2) -- (k2); \draw[->] (h2) -- (v2);
+    \node (s12) at (1.8,-3.2) {$s_{12}=\vq_1^\top\vk_2/\sqrt{P}$};
+    \draw[->] (q1) -- (s12); \draw[->] (k2) -- (s12);
+    \node (a12) at (1.8,-4.3) {$a_{12}=\softmax_j(\vs_1)_2$};
+    \draw[->] (s12) -- (a12);
+    \node (g1) at (4.6,-5.4) {$\vg_1=\sum_j a_{1j}\vv_j$};
+    \draw[->] (a12) -- (g1);
+    \draw[->] (v2) to[out=-80, in=60] (g1);
+    \draw[decorate, decoration={brace, amplitude=3pt}] (-0.25,0.5) -- (-0.25,-0.5) ;
+    \node[left] at (-0.35,0) {$D$ channels};
+  \end{tikzpicture}
+  \caption{Computing one term of self-attention. Each position's representation $\vh_i$ is mapped to a query, a key and a value. The inner product of the query of position 1 and the key of position 2, normalized over all keys by the softmax, gives the weight $a_{12}$ with which position 1 takes the value of position 2. The output $\vg_1$ sums such contributions over all positions.}
+  \label{fig:attention_diagram}
+\end{figure}
+
+\paragraph{Matrix form.} Stacking the vectors as rows, $\mQ=\mH\mW^{Q\top}\in\R^{L\times P}$, $\mK=\mH\mW^{K\top}\in\R^{L\times P}$ and $\mV=\mH\mW^{V\top}\in\R^{L\times D_v}$. The score matrix is $\mS=\mQ\mK^\top/\sqrt{P}$, with dimensions $[L\times P][P\times L]=[L\times L]$, the attention matrix is $\mA=\softmax(\mS)$ with the softmax applied to each row, and the output is
+\begin{equation}
+  \underbrace{\mG}_{L\times D_v} = \underbrace{\mA}_{L\times L}\,\underbrace{\mV}_{L\times D_v} = \softmax\!\left(\frac{\mQ\mK^\top}{\sqrt{P}}\right)\mV .
+  \label{eq:attention_matrix}
+\end{equation}
+Written this way the layer is a few matrix products, which GPUs compute efficiently.
+
+\paragraph{Why divide by $\sqrt{P}$?} Suppose the entries of $\vq_i$ and $\vk_j$ are independent with mean zero and variance one, as they roughly are at initialization with suitably scaled weights. Then $\E[\vq_i^\top\vk_j]=0$ and
+\begin{equation}
+  \operatorname{Var}\left(\vq_i^\top\vk_j\right) = \sum_{p=1}^P\operatorname{Var}(q_{ip}k_{jp}) = \sum_{p=1}^P\E[q_{ip}^2]\,\E[k_{jp}^2] = P ,
+\end{equation}
+so the raw inner products have standard deviation $\sqrt{P}$, and dividing by $\sqrt{P}$ gives scores of unit variance whatever $P$ is. Without the scaling, large $P$ produces large score differences, and the softmax \emph{saturates}: nearly all the weight goes to one position (Figure~\ref{fig:attention_scaling}). Saturation stalls learning, because the derivative of the softmax, $\partial a_{ij}/\partial s_{ij'} = a_{ij}(\ind[j=j']-a_{ij'})$, is close to zero for every $j,j'$ when one $a_{ij}$ is close to one and the rest close to zero.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.6\linewidth]{attention_scaling.pdf}
+  \caption{Mean largest attention weight for one query against $L=50$ keys with independent standard normal entries, as a function of the dimension $P$ (2000 replicates). Without scaling the softmax saturates toward a single position as $P$ grows; with the $1/\sqrt{P}$ scaling the attention distribution is unchanged.}
+  \label{fig:attention_scaling}
+\end{figure}
+
+\paragraph{Attention as a learned graph.} The matrix $\mA$ can be read as the weighted adjacency matrix of a directed graph on the $L$ positions, with $a_{ij}$ the amount of information passed from node $j$ to node $i$. Every node passes information to every other node at once. Graph neural networks also pass messages along the edges of a graph, but there the graph, for example the bonds of a molecule, is given as input. Attention constructs the graph from the data, separately for each input. The graph is not symmetric in general: $s_{ij}\neq s_{ji}$ because the query and key maps differ. If we tied them, $\mW^Q=\mW^K$, the scores would be symmetric, and positions would attend to positions with similar representations. With separate maps the model can learn to attend to positions that are similar or dissimilar in whatever sense is useful for the prediction.
+
+\paragraph{Comparison with convolution.} A stride-one convolution of width $k$ with input and output channels $D$ computes $\vg_i=\sum_{\ell=-(k-1)/2}^{(k-1)/2}\mW_\ell\vh_{i+\ell}$, with a separate $D\times D$ weight matrix $\mW_\ell$ for each offset $\ell$ and odd $k$. Self-attention computes $\vg_i=\sum_{j=1}^L a_{ij}\mW^V\vh_j$: one weight matrix shared by all positions, multiplied by a scalar weight $a_{ij}$ that depends on the content of positions $i$ and $j$ rather than only their offset. The convolution is local and fixed after training; attention is global and input-dependent.
+
+\subsection{The transformer block}
+
+An attention layer is combined with a position-wise multilayer perceptron (MLP) into a \emph{transformer block}. In the variant used by most current models, each sub-layer is preceded by layer normalization (LN)~\citep{ba2016}, which rescales each position's vector to zero mean and unit variance across channels followed by a learned scale and shift, and wrapped in a residual connection~\citep{he2016},
+\begin{align}
+  \mH' &= \mH + \operatorname{MHA}\big(\operatorname{LN}(\mH)\big), \\
+  \mH^{\text{out}} &= \mH' + \operatorname{MLP}\big(\operatorname{LN}(\mH')\big),
+\end{align}
+where MHA is multi-head attention (below) and the MLP, applied to each position separately, is $\operatorname{MLP}(\vh)=\mW_2\max(0,\mW_1\vh+\mathbf{c}_1)+\mathbf{c}_2$ with $\mW_1\in\R^{D_{\text{ff}}\times D}$, $\mW_2\in\R^{D\times D_{\text{ff}}}$ and biases $\mathbf{c}_1\in\R^{D_{\text{ff}}}$, $\mathbf{c}_2\in\R^{D}$. The residual connections let each block learn a correction to its input and keep gradients flowing through deep stacks. Attention mixes information across positions; the MLP transforms the features at each position. A transformer stacks many such blocks. All weight matrices are initialized randomly and learned jointly by backpropagation of a single loss at the output, whether that is predicting the next word or the accessibility of a sequence.
+
+\subsection{Multi-head attention}
+
+A single attention matrix expresses one pattern of which positions are relevant to which. In practice several attention computations, called \emph{heads}, are run in parallel (Figure~\ref{fig:multihead}). Head $m=1,\dots,M$ has its own projections $\mW^Q_m,\mW^K_m\in\R^{P\times D}$ and $\mW^V_m\in\R^{(D/M)\times D}$ and computes $\mG_m=\softmax(\mQ_m\mK_m^\top/\sqrt{P})\mV_m\in\R^{L\times D/M}$ as in~\eqref{eq:attention_matrix}. The head outputs are concatenated along the channel dimension and mixed by an output projection $\mW^O\in\R^{D\times D}$,
+\begin{equation}
+  \operatorname{MHA}(\mH) = \big[\mG_1,\dots,\mG_M\big]\,\mW^{O\top} \in\R^{L\times D} .
+\end{equation}
+Dividing the value dimension by $M$ keeps the number of output channels, and the cost, the same as for a single head of full width. Concatenating along the sequence dimension instead would change the number of positions, which is not what we want. Using several heads is not the same as using one head with larger $P$: however large $P$ is, a single head produces one attention matrix, whereas $M$ heads produce $M$ different matrices. Each head can learn a different notion of relevance. In language, a noun might attend to its adjectives in one head and to the subject of the sentence in another. In regulatory sequence, some cofactors bind close to a TF and others further away, and different heads could capture these different ranges. Typical models use from 4 to 16 heads.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}, b/.style={draw, minimum height=0.6cm, minimum width=1.1cm, align=center}]
+    \node (Hin) at (3.6,-1.6) {$\mH$};
+    \foreach \m/\x in {1/0, M/5.0} {
+      \node[b, fill=gray!10] (q\m) at (\x,0) {$\mW^Q_{\m}$};
+      \node[b, fill=gray!10] (k\m) at (\x+1.2,0) {$\mW^K_{\m}$};
+      \node[b, fill=gray!10] (v\m) at (\x+2.4,0) {$\mW^V_{\m}$};
+      \node[b, fill=blue!25, minimum width=3.4cm] (att\m) at (\x+1.2,1.3) {attention, head $\m$};
+      \foreach \w in {q,k,v} {\draw[->] (\w\m) -- (\w\m |- att\m.south); \draw[->] (Hin) -- (\w\m.south);}
+    }
+    \node at (4.3,1.3) {$\cdots$};
+    \node[b, fill=blue!10, minimum width=2.4cm] (cat) at (3.6,2.6) {concatenate};
+    \node[b, fill=gray!10, minimum width=2.4cm] (out) at (3.6,3.7) {$\mW^O$};
+    \draw[->] (att1) |- (cat); \draw[->] (attM) |- (cat);
+    \draw[->] (cat) -- (out);
+    \draw[->] (out) -- ++(0,0.8) node[above] {$\operatorname{MHA}(\mH)$};
+  \end{tikzpicture}
+  \caption{Multi-head attention. Each head projects the input to its own queries, keys and values and computes its own attention; the head outputs are concatenated along the channel dimension and mixed by the output projection $\mW^O$.}
+  \label{fig:multihead}
+\end{figure}
+
+\subsection{Cost and path length}
+
+Table~\ref{tab:complexity} compares the per-layer cost of attention with that of convolutional and recurrent layers~\citep{vaswani2017}, for sequence length $L$, $D$ channels and convolution width $k$. Computing $\mS$ requires $L^2$ inner products of length $P\approx D$, so attention costs $O(L^2D)$ per layer, quadratic in the sequence length. This is its main drawback, and much engineering, and many alternative architectures, aim to reduce it. Its advantage is the \emph{maximum path length}, the number of layers information must traverse to travel between the two ends of the sequence: one, for attention. For stride-one convolutions the receptive field grows by $k-1$ per layer, so connecting positions $L$ apart takes $(L-1)/(k-1)=O(L/k)$ layers, or $O(\log_k L)$ with dilated convolutions. Recurrent neural networks, covered in a later chapter, pass information along the sequence one position at a time. Their path length is $O(L)$ and they need $O(L)$ sequential operations per layer, a for loop that cannot exploit the parallelism of GPUs, whereas convolutions and attention compute all positions at once.
+
+\begin{table}[t]
+  \centering
+  \caption{Per-layer cost, number of sequential operations and maximum path length between any two positions, for sequence length $L$, $D$ channels and convolution width $k$. Adapted from \citet{vaswani2017}.}
+  \label{tab:complexity}
+  \begin{tabular}{llll}
+    \toprule
+    Layer type & Cost per layer & Sequential operations & Maximum path length \\
+    \midrule
+    Self-attention & $O(L^2D)$ & $O(1)$ & $O(1)$ \\
+    Recurrent & $O(LD^2)$ & $O(L)$ & $O(L)$ \\
+    Convolutional & $O(kLD^2)$ & $O(1)$ & $O(L/k)$; $O(\log_k L)$ if dilated \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+In genomics, transformers are rarely applied directly to nucleotides. State-of-the-art models first apply convolutional layers, which extract local features such as motifs and, through pooling, shorten the sequence, and then apply transformer blocks to the shorter sequence of feature vectors (Figure~\ref{fig:cnn_attention}b). Shortening the sequence by a factor of 128 reduces the quadratic cost of attention by a factor of $128^2$.
+
+%======================================================================
+\section{Positional information}
+\label{sec:position}
+%======================================================================
+
+Nothing in equations~\eqref{eq:attn_softmax}--\eqref{eq:attn_output} refers to where positions $i$ and $j$ are in the sequence. Adjacent positions are treated the same as positions at opposite ends; we have lost the CNN's built-in notion of which positions are close. Formally, self-attention is \emph{permutation equivariant}. Let $\mPi$ be an $L\times L$ permutation matrix, so that $\mPi\mH$ reorders the rows of $\mH$, and $\mPi^\top\mPi=\mI$. Permuting the input permutes the queries, keys and values, $\mQ\mapsto\mPi\mQ$, $\mK\mapsto\mPi\mK$, $\mV\mapsto\mPi\mV$, so the score matrix becomes $\mPi\mS\mPi^\top$, its rows and columns reordered in the same way. A row-wise softmax commutes with this reordering, so $\mA\mapsto\mPi\mA\mPi^\top$ and
+\begin{equation}
+  \mG \mapsto \mPi\mA\mPi^\top\mPi\mV = \mPi\mA\mV = \mPi\mG .
+\end{equation}
+The output is the original output, permuted. Shuffling a DNA sequence or a sentence changes its meaning, so the model must be told where each position is.
+
+\subsection{Sinusoidal positional encodings}
+
+The original transformer adds a fixed \emph{positional encoding} $\vp_i\in\R^D$ to the input representation of each position~\citep{vaswani2017}, $\vh^{(0)}_i=\mW^{\text{in}}\vx_i+\vp_i$, where $\vx_i$ is the input at position $i$ and $\mW^{\text{in}}$ an embedding matrix. Indexing channels from zero, pair $r=0,\dots,D/2-1$ of channels holds a sine and a cosine of frequency $\omega_r$,
+\begin{equation}
+  p_{i,2r} = \sin(\omega_r i), \qquad p_{i,2r+1} = \cos(\omega_r i), \qquad \omega_r = b^{-2r/D},
+\end{equation}
+where $b$ is a constant, usually $10^4$. The wavelengths $2\pi/\omega_r$ range geometrically from $2\pi$ positions for $r=0$ to nearly $2\pi b$ for the last pair. Low channels oscillate quickly along the sequence and high channels are nearly constant (Figure~\ref{fig:posenc}a), somewhat like the digits of a counter. The encoding has a useful property: using $\sin\alpha\sin\beta+\cos\alpha\cos\beta=\cos(\alpha-\beta)$,
+\begin{equation}
+  \vp_i^\top\vp_{i+\Delta} = \sum_{r=0}^{D/2-1}\left[\sin(\omega_r i)\sin(\omega_r(i+\Delta)) + \cos(\omega_r i)\cos(\omega_r(i+\Delta))\right] = \sum_{r=0}^{D/2-1}\cos(\omega_r\Delta),
+\end{equation}
+which depends only on the offset $\Delta$, not on $i$, and is largest at $\Delta=0$ (Figure~\ref{fig:posenc}b). Nearby positions have similar encodings. Moreover, $\vp_{i+\Delta}$ is a fixed linear function of $\vp_i$, a rotation of each pair of channels by angle $\omega_r\Delta$, so relative positions can be read off by the linear maps of the attention layer.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.45\linewidth}
+    \includegraphics[width=\linewidth]{positional_encoding.pdf}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.45\linewidth}
+    \includegraphics[width=\linewidth]{positional_dot.pdf}
+    \caption{}
+  \end{subfigure}
+  \caption{Sinusoidal positional encoding for $L=60$ positions and $D=32$ channels, $b=10^4$. (a) The encoding matrix; row $i$ is $\vp_i$. (b) The inner product $\vp_i^\top\vp_{i+\Delta}$ depends only on the offset $\Delta$ and peaks at $\Delta=0$.}
+  \label{fig:posenc}
+\end{figure}
+
+Adding the encoding to the input, rather than concatenating it, may seem to corrupt the input signal. Concatenation works too, but addition is simpler and works as well in practice: in high dimension, the model can learn to keep content and position in nearly separate subspaces. With the encoding added, the score between positions $i$ and $j$ expands into four terms,
+\begin{equation}
+  \vq_i^\top\vk_j = (\mW^Q\ve_i + \mW^Q\vp_i)^\top(\mW^K\ve_j + \mW^K\vp_j),
+\end{equation}
+where $\ve_i=\mW^{\text{in}}\vx_i$ is the content embedding: a content-content term, two content-position terms and a position-position term, the last of which lets the model favour nearby positions. Learned positional embeddings, one free vector $\vp_i$ per position, are an alternative. Enformer uses \emph{relative} positional encodings, which add to each score $s_{ij}$ a learned function of the offset $j-i$ built from fixed basis functions of distance~\citep{avsec2021}.
+
+\subsection{Rotary positional embeddings}
+
+Many recent transformers use rotary positional embeddings (RoPE)~\citep{su2024}, which build the offset-only property directly into the scores. In this subsection we write $m$ and $n$ for the positions of a query and a key. In two dimensions, let $\mR(\alpha)$ be the matrix that rotates a vector by angle $\alpha$,
+\begin{equation}
+  \mR(\alpha) = \begin{pmatrix}\cos\alpha & -\sin\alpha\\ \sin\alpha & \cos\alpha\end{pmatrix},
+\end{equation}
+and rotate the query at position $m$ and the key at position $n$ by angles proportional to their positions, $\tilde\vq_m=\mR(m\theta)\vq_m$ and $\tilde\vk_n=\mR(n\theta)\vk_n$, for a frequency $\theta$. Rotations compose by adding angles and $\mR(\alpha)^\top=\mR(-\alpha)$, so $\mR(m\theta)^\top\mR(n\theta)=\mR((n-m)\theta)$ and
+\begin{equation}
+  \tilde\vq_m^\top\tilde\vk_n = \vq_m^\top\mR(m\theta)^\top\mR(n\theta)\vk_n = \vq_m^\top\mR\big((n-m)\theta\big)\vk_n .
+\end{equation}
+The score depends on the content of the query and key and on their offset $n-m$, but not on their absolute positions. For $P$ dimensions, split the query and key into $P/2$ pairs of coordinates and rotate pair $r=0,\dots,P/2-1$ by its own frequency $\theta_r=b^{-2r/P}$, as in the sinusoidal encoding: $\mR_m=\operatorname{blockdiag}(\mR(m\theta_0),\dots,\mR(m\theta_{P/2-1}))$. The fastest pair rotates by one radian per position, a full turn about every 6 positions; with $b=10^4$, the slowest takes around $2\pi\times10^4\approx63{,}000$ positions. The same construction is often described with complex numbers: treating a pair of coordinates as a complex number, a rotation is multiplication by a unit complex number, and the score is the real part of a product in which the two position-dependent phases cancel to leave only their difference. Unlike additive encodings, RoPE leaves the values unchanged and acts only on the scores.
+
+%======================================================================
+\section{Three-dimensional genome organization}
+\label{sec:hic}
+%======================================================================
+
+Enhancers regulate genes through chromatin loops, so a model that predicts gene regulation from sequence would benefit from knowing how the genome folds. Chromosome conformation capture (3C)~\citep{dekker2002} and its successors 4C and 5C measure contacts between chosen genomic regions. \emph{Hi-C}~\citep{lieberman2009} measures contacts between all pairs of regions genome-wide (Figure~\ref{fig:hic_protocol}). Chromatin is crosslinked, so that DNA segments close together in three dimensions are held together by proteins, and digested with a restriction enzyme. The cut ends are filled in with biotin-labelled nucleotides and ligated, joining segments that were close in space even if they are far apart, or on different chromosomes, in the linear genome. After reversing the crosslinks and shearing the DNA, the biotinylated junctions are pulled down with streptavidin and sequenced with paired-end reads. Each read pair whose two ends map to distant locations records a contact. Counting read pairs for every pair of genomic bins gives a symmetric \emph{contact matrix}. Because the number of bin pairs grows quadratically with resolution, Hi-C requires a very large number of reads.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small, align=center}, st/.style={draw, rounded corners, fill=gray!8, minimum height=0.9cm, text width=2.2cm}]
+    \node[st] (s1) at (0,0) {crosslink\\chromatin};
+    \node[st] (s2) at (2.9,0) {digest with\\restriction enzyme};
+    \node[st] (s3) at (5.8,0) {fill in ends\\with biotin};
+    \node[st] (s4) at (8.7,0) {ligate\\proximal ends};
+    \node[st] (s5) at (8.7,-1.6) {reverse crosslinks,\\shear DNA};
+    \node[st] (s6) at (5.8,-1.6) {pull down\\biotinylated\\junctions};
+    \node[st] (s7) at (2.9,-1.6) {paired-end\\sequencing};
+    \node[st] (s8) at (0,-1.6) {count contacts\\per pair of bins};
+    \foreach \a/\b in {s1/s2,s2/s3,s3/s4,s4/s5,s5/s6,s6/s7,s7/s8} \draw[->, thick] (\a) -- (\b);
+  \end{tikzpicture}
+  \caption{The Hi-C protocol. Ligation joins DNA segments that are close in three-dimensional space; sequencing the junctions and mapping both ends gives counts of contacts between every pair of genomic bins.}
+  \label{fig:hic_protocol}
+\end{figure}
+
+\subsection{Topologically associating domains}
+
+The strongest signal in a contact matrix is along the diagonal: contact frequency decays with linear distance, roughly as its inverse at the megabase scale~\citep{lieberman2009}. On top of this decay, Hi-C maps show squares along the diagonal (Figure~\ref{fig:hic}a). These are \emph{topologically associating domains} (TADs)~\citep{dixon2012}: regions, typically hundreds of kilobases to around a megabase long, whose loci contact each other much more often than they contact loci in neighbouring domains. A useful picture is DNA wrapped around nucleosomes at the scale of hundreds of base pairs, folded into loops, and packed into largely separate globules at the scale of a megabase. TAD boundaries are often bound by CTCF, and loops anchored at pairs of CTCF sites, held by cohesin, are a common feature~\citep{rao2014}. TADs are largely shared across cell types and are conserved between mouse and human~\citep{dixon2012}. Because enhancers mostly contact genes in the same TAD, TADs constrain which genes an enhancer can regulate.
+
+\citet{dixon2012} called TADs with a \emph{directionality index}. For bin $i$, let $A_i$ be the number of contacts with bins in a window upstream and $B_i$ the number with bins in an equal window downstream, and let $E_i=(A_i+B_i)/2$. Then
+\begin{equation}
+  \text{DI}_i = \operatorname{sign}(B_i-A_i)\left[\frac{(A_i-E_i)^2}{E_i} + \frac{(B_i-E_i)^2}{E_i}\right],
+\end{equation}
+a signed chi-squared statistic for the null hypothesis that contacts are equally likely upstream and downstream. Just inside the start of a TAD, a bin contacts mostly downstream bins and the index is positive; near the end of a TAD it is negative. TAD boundaries are where the index switches from negative to positive (Figure~\ref{fig:hic}b). The authors segmented the index with a hidden Markov model, a model we meet in a later chapter.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.46\linewidth}
+    \includegraphics[width=\linewidth]{hic_map.pdf}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.46\linewidth}
+    \includegraphics[width=\linewidth]{hic_di.pdf}
+    \caption{}
+  \end{subfigure}
+  \caption{Simulated Hi-C data for 2\,Mb at 10\,kb resolution. Expected contacts decay as the inverse of distance and are seven times higher within TADs; counts are Poisson. (a) The contact matrix shows TADs as squares along the diagonal. (b) The directionality index, with a window of 150\,kb, is positive (downstream bias) at the start of each TAD and negative (upstream bias) at its end; dashed lines mark the true boundaries.}
+  \label{fig:hic}
+\end{figure}
+
+%======================================================================
+\section{Long-range sequence-to-function models}
+\label{sec:enformer}
+%======================================================================
+
+\subsection{From Basset to Basenji}
+
+Basset classified 600\,bp sequences as accessible or not. Its successor, Basenji~\citep{kelley2018}, predicts the read coverage of thousands of genomic \emph{tracks}, the signal of each ChIP-seq, DNase-seq, ATAC-seq or CAGE experiment along the genome, from about 131\,kb of sequence, in bins of 128\,bp. CAGE (cap analysis of gene expression) measures transcription at transcription start sites, so predicting CAGE at a gene's TSS amounts to predicting its expression. Basenji used dilated convolutions to enlarge its receptive field (Section~\ref{sec:receptive}), and a later version trained jointly on human and mouse data improved predictions in both species~\citep{kelley2020}. Training on several species helps because what these models need is diversity of sequence: human genomes differ from each other at only about one position in a thousand, so more human samples add little new sequence, whereas the mouse genome provides many new examples of regulatory sequence with conserved TFs.
+
+\subsection{Enformer}
+
+Enformer~\citep{avsec2021}, short for enhancer transformer, replaced most of Basenji's dilated convolutions with transformer blocks (Figure~\ref{fig:enformer}). Its input is about 200\,kb (196,608\,bp) of one-hot sequence. Seven convolutional blocks with pooling extract local features, the ``words'' of regulatory sequence, and reduce the sequence to one vector per 128\,bp bin. Eleven transformer blocks with multi-head attention then let each bin draw on every other bin, which can capture the ``grammar'' of interactions between distant elements. Organism-specific output heads predict 5,313 human and 1,643 mouse tracks for the central bins. Enformer can use sequence up to about 100\,kb away from a position, compared with about 20\,kb for Basenji2. Training minimizes a Poisson negative log likelihood of the observed coverage $y_{bt}$ in bin $b$ and track $t$ given the prediction $\hat y_{bt}>0$, which up to a constant is $\sum_{b,t}(\hat y_{bt}-y_{bt}\log\hat y_{bt})$. The data are split into training, validation and test sets by genomic region, so the test set contains regions of the genome the model has not seen.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.32\linewidth}
+    \includegraphics[width=\linewidth]{slides/enformer_architecture.png}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.66\linewidth}
+    \includegraphics[width=\linewidth]{slides/enformer_performance.png}
+    \caption{}
+  \end{subfigure}
+  \caption{Enformer. (a) Architecture: convolutional layers, transformer layers, and human and mouse output heads predicting genomic tracks; the receptive field (blue) is about five times that of Basenji2 (orange). (b) Pearson correlation between predicted and observed coverage per test-set track, Enformer against Basenji2, for CAGE, histone ChIP-seq, TF ChIP-seq and DNase/ATAC-seq tracks; mean correlations are shown in the corners. Reproduced from \citet{avsec2021}.}
+  \label{fig:enformer}
+\end{figure}
+
+Performance is measured, for each track, as the Pearson correlation between predicted and observed coverage across all bins of the test regions. Enformer improved on Basenji2 for every class of track (Figure~\ref{fig:enformer}b), with mean correlations rising from 0.643 to 0.712 for CAGE, 0.668 to 0.700 for histone marks, 0.547 to 0.578 for TF binding and 0.826 to 0.853 for accessibility. The gains are modest on average but consistent, and largest for gene expression (CAGE), where distal enhancers matter most. Figure~\ref{fig:enformer_tracks} shows predicted and observed DNase-seq tracks around the immune gene \textit{CD44} in two cell types: Enformer's predictions follow the cell-type-specific peaks more closely than Basenji2's.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{slides/enformer_tracks.png}
+  \caption{Observed (green) and predicted (blue, Enformer; orange, Basenji2) DNase-seq coverage around \textit{CD44} in CD14-positive monocytes and keratinocytes. Reproduced from \citet{avsec2021}.}
+  \label{fig:enformer_tracks}
+\end{figure}
+
+\subsection{Enformer attends within TADs}
+
+Enformer is trained only on DNA sequence and one-dimensional tracks; it never sees Hi-C data. Yet its attention weights reflect TADs (Figure~\ref{fig:enformer_tad}). Averaging the attention matrices over sequences centred on TAD boundaries, and subtracting the average for sequences centred at random positions, shows that queries attend less to keys on the other side of a boundary and more to keys within their own TAD, and that keys at the boundary itself receive extra attention. A plausible explanation is that the sequence relevant to a gene's expression, its enhancers, lies mostly in the same TAD, and that TAD boundaries have sequence determinants, such as CTCF sites, that the model can recognize. The model learned a feature of three-dimensional genome organization because it was useful for its prediction task, an example of representation learning: models trained on enough data can capture structure they were never explicitly given.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.42\linewidth}
+    \includegraphics[width=\linewidth]{slides/enformer_tad_attention_map.png}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.55\linewidth}
+    \includegraphics[width=\linewidth]{slides/enformer_tad_attention_violin.png}
+    \caption{}
+  \end{subfigure}
+  \caption{Enformer's attention reflects TADs. (a) Average attention for sequences centred on a TAD boundary minus that for sequences centred at random positions, by query and key position. (b) Average attention within a TAD, across TADs, and to keys at the boundary, for sequences centred at TAD boundaries and at random positions. Reproduced from \citet{avsec2021}.}
+  \label{fig:enformer_tad}
+\end{figure}
+
+\subsection{AlphaGenome}
+
+AlphaGenome~\citep{avsec2026} extends this approach (Figure~\ref{fig:alphagenome}). Its input is 1\,Mb of sequence, five times Enformer's, and it predicts 5,930 human and 1,128 mouse tracks, many at single base-pair resolution. Beyond Enformer's assays it predicts RNA-seq coverage, PRO-cap, splice sites, splice junctions and splice site usage, and Hi-C-derived contact maps at 2\,kb resolution, so it is trained on three-dimensional structure rather than having to infer it. The architecture follows a U-Net pattern: convolutional encoders shorten the sequence, transformers operate on the shortened sequence, and decoders restore base-pair resolution, with the 1\,Mb sequence partitioned across several interconnected accelerators. Training has two stages. Models are first pre-trained on the observed tracks, either with folds of the genome held out for evaluation or on the whole genome, with data augmentation by random shifts of the input window and reverse complementing. A single student model is then distilled from an ensemble of whole-genome teacher models, trained to reproduce their predictions on sequences with random shifts, reverse complementing and random mutations. A primary aim is predicting the effects of genetic variants, by comparing predictions for the reference and alternative alleles as in Section~\ref{sec:ism}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{slides/alphagenome.png}
+  \caption{AlphaGenome. (a) A 1\,Mb input sequence is processed by encoders, transformers and decoders distributed across interconnected devices to predict many output types, with the number of human and mouse tracks and the output resolution of each. (b) Pre-training on observed tracks with augmented input sequences. (c) Distillation of a student model from teacher predictions. Reproduced from \citet{avsec2026}.}
+  \label{fig:alphagenome}
+\end{figure}
+
+%======================================================================
+\section{Summary}
+%======================================================================
+
+\begin{itemize}
+  \item Nearly all cells in the body share the same DNA but differ in which genes they express. Epigenomic assays, histone modification ChIP-seq and chromatin accessibility measured by DNase-seq or ATAC-seq, reveal which regions of the genome are active in each cell type.
+  \item Regulatory elements control gene expression. Promoters lie at the gene; enhancers lie further away along the linear genome but are brought close to their target promoters by chromatin loops. Enhancers integrate activating and repressive TF inputs, as in the \textit{eve} stripe 2 enhancer.
+  \item ENCODE and Roadmap Epigenomics mapped these signals across hundreds of cell types. The data form a sparse tensor (position $\times$ assay $\times$ cell type) with problems of denoising, imputation and annotation. How much of the biochemically active genome is functional remains debated.
+  \item CNNs such as Basset predict accessibility from sequence across many cell types, outperform k-mer methods, learn known TF motifs in their first layer, and predict the effects of genetic variants by in silico mutagenesis.
+  \item Attention computes, for every pair of positions, a weight from the inner product of a query and a key, normalized by a softmax, and averages values with these weights: $\mG=\softmax(\mQ\mK^\top/\sqrt{P})\mV$. It connects any two positions in one layer at a cost quadratic in sequence length. Multi-head attention runs several attention patterns in parallel. Attention is permutation equivariant, so positional information is added through sinusoidal, relative or rotary encodings.
+  \item Hi-C measures three-dimensional contacts and reveals TADs. Enformer, a convolutional and transformer model with a 200\,kb input, improves track prediction over convolutional models and learns to attend within TADs without seeing Hi-C data. AlphaGenome extends the input to 1\,Mb and adds outputs including splicing and contact maps.
+\end{itemize}
+
+%======================================================================
+\section*{Exercises}
+%======================================================================
+
+\begin{enumerate}
+  \item Show that if the entries of $\vq,\vk\in\R^P$ are independent with mean zero and variance one, then $\vq^\top\vk$ has mean zero and variance $P$. Compute the Jacobian of the softmax and show that its entries approach zero as one input becomes much larger than the others.
+  \item Write out the shapes of every matrix in multi-head attention with $L$ positions, $D$ channels and $M$ heads, and count the parameters of the layer. Show that the cost of computing the attention matrices is $O(ML^2P)$.
+  \item Prove that self-attention without positional information is permutation equivariant. Show that adding the sinusoidal encoding breaks this symmetry, and that $\vp_{i+\Delta}$ is obtained from $\vp_i$ by a rotation of each pair of channels that does not depend on $i$.
+  \item Show that a convolution of odd width $k$ with $D$ input and output channels can be written as a sum over offsets of $D\times D$ matrices applied to shifted inputs, and that self-attention with $a_{ij}$ fixed to $1/k$ when $|i-j|\leq(k-1)/2$ and zero otherwise is a special case with all $k$ matrices equal to $\mW^V/k$. What does the convolution gain from having separate matrices per offset?
+  \item Compute the receptive field, in base pairs, of a network with seven convolutional layers of width 5, each followed by max pooling of width 2. How many such layers would be needed to reach 100\,kb, and what would the output resolution be?
+  \item Simulate a Hi-C contact matrix with TADs as in Figure~\ref{fig:hic}, compute the directionality index, and call boundaries where it changes sign from negative to positive. How does the accuracy of the calls change with the sequencing depth and the window size?
+\end{enumerate}
