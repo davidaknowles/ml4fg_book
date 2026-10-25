@@ -12,3 +12,7 @@ __pycache__/
 *.fdb_latexmk
 *.synctex.gz
 chapter*/main.pdf
+
+# Lecture captions: raw files contain student names; stripped/ is intermediate
+captions/raw/
+captions/stripped/
