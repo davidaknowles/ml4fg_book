@@ -1,0 +1,812 @@
+% Chapter 6: hidden Markov models and chromatin states.
+% Requires: amsmath, amssymb, bm, graphicx, booktabs, subcaption, algorithm, algpseudocode,
+% tikz (arrows.meta, positioning, calc, decorations.pathreplacing, fit), natbib.
+% Computed figures are produced by scripts/make_figures.py (HMM routines in scripts/hmm.py);
+% figures/slides/ holds figures taken from the lecture slides.
+
+\providecommand{\R}{\mathbb{R}}
+\providecommand{\E}{\mathbb{E}}
+\providecommand{\Normal}{\mathcal{N}}
+\providecommand{\argmax}{\operatorname*{arg\,max}}
+\providecommand{\argmin}{\operatorname*{arg\,min}}
+\providecommand{\vy}{\mathbf{y}}
+\providecommand{\vx}{\mathbf{x}}
+\providecommand{\mX}{\mathbf{X}}
+\providecommand{\mI}{\mathbf{I}}
+\providecommand{\vb}{\boldsymbol{\beta}}
+\providecommand{\veps}{\boldsymbol{\epsilon}}
+\providecommand{\vp}{\mathbf{p}}
+\providecommand{\vg}{\mathbf{g}}
+\providecommand{\ind}{\mathbf{1}}
+% new in this chapter
+\providecommand{\mY}{\mathbf{Y}}
+\providecommand{\mT}{\mathbf{T}}
+\providecommand{\mE}{\mathbf{E}}
+\providecommand{\mC}{\mathbf{C}}
+\providecommand{\mD}{\mathbf{D}}
+\providecommand{\vpi}{\boldsymbol{\pi}}
+\providecommand{\vphi}{\boldsymbol{\phi}}
+\providecommand{\vgamma}{\boldsymbol{\gamma}}
+\providecommand{\vtheta}{\boldsymbol{\theta}}
+\providecommand{\vf}{\mathbf{f}}
+\providecommand{\vr}{\mathbf{r}}
+\providecommand{\vbw}{\mathbf{b}}
+\providecommand{\vone}{\mathbf{1}}
+\providecommand{\indep}{\perp\!\!\!\perp}
+\providecommand{\KL}{\mathrm{KL}}
+
+\chapter{Hidden Markov models}
+\label{ch:hmm}
+
+Chapter 5 introduced clustering and mixture models: each data point is assigned to one of $K$ latent groups, and the groups are learned from the data without labels. In many genomic problems the data points are not exchangeable. They are positions along a chromosome, and nearby positions tend to belong to the same group: a gene body spans thousands of nucleotides, a promoter sits next to the start of a gene, and a repressed domain can extend over hundreds of kilobases. A \emph{hidden Markov model} (HMM) is a mixture model in which the cluster assignments of neighbouring positions are dependent, through a Markov chain along the sequence.
+
+This chapter develops HMMs through one application, the annotation of the genome into \emph{chromatin states} from histone modification data, as implemented in ChromHMM~\citep{ernst2010,ernst2012}. Along the way we introduce the language of probabilistic graphical models and conditional independence, derive the forward-backward algorithm for computing posterior probabilities of the hidden states, and derive the Baum-Welch algorithm, an instance of expectation maximization (EM), for learning the model parameters.
+
+%======================================================================
+\section{Chromatin states}
+\label{sec:chromatin_states}
+%======================================================================
+
+\subsection{Epigenomic data}
+
+Chapter 3 introduced chromatin: DNA wrapped around histone proteins, whose tails carry chemical modifications such as methylation and acetylation. These modifications are measured genome-wide by chromatin immunoprecipitation followed by sequencing (ChIP-seq) with an antibody against each modification. Chromatin accessibility is measured by DNase-seq or ATAC-seq. Several large consortia have generated such data across many cell types. The Encyclopedia of DNA Elements (ENCODE) focused on cell lines~\citep{encode2012,encode2020}. The Roadmap Epigenomics project profiled more than 150 primary cells and tissues, that is, cells taken directly from people rather than grown in culture (Figure~\ref{fig:roadmap})~\citep{roadmap2015}. For each sample it measured six core histone modifications by ChIP-seq, open chromatin by DNase-seq, DNA methylation by whole-genome or reduced-representation bisulfite sequencing (WGBS, RRBS), and gene expression by RNA-seq. Today ATAC-seq is often used in place of DNase-seq.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{slides/roadmap_tissues.png}
+  \caption{Primary tissues and cell types profiled by the Roadmap Epigenomics project. Reproduced from \citet{roadmap2015}.}
+  \label{fig:roadmap}
+\end{figure}
+
+Histone modifications are named by the histone (H3, H4, H2A, H2B), the modified amino acid residue (for example K4, lysine 4) and the modification (me1, me2 or me3 for mono-, di- or trimethylation; ac for acetylation). So H3K4me3 is trimethylation of lysine 4 on histone H3. Data from one tissue look like a set of tracks along the genome (Figure~\ref{fig:capza2}). Each track is the ChIP-seq read coverage for one modification, or for another chromatin protein: RNA polymerase II (Pol II), the enzyme that transcribes DNA into RNA, so that its presence indicates active transcription; CTCF, which together with cohesin controls chromatin looping and so which regulatory elements can contact which genes; and the histone variant H2A.Z. The window shown is about 100 kb around the gene \textit{CAPZA2}, a tiny fraction of the 3 billion nucleotide genome, and it is already hard to take in by eye.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{slides/capza2_states.png}
+  \caption{About 100 kb of chromosome 7 around the gene \textit{CAPZA2} in human CD4$^+$ T cells. Bottom, ChIP-seq signal for 38 histone modifications, Pol II, CTCF and H2A.Z, grouped into acetylations (blue) and methylations (pink). Middle, the \textit{CAPZA2} gene. Top, chromatin states learned by an HMM with 51 states, one row per state. The promoter states (red) sit at the transcription start site and the transcribed states (purple) cover the gene body. The gene annotation was not used to learn the states. Reproduced from \citet{ernst2010}, using data from \citet{barski2007} and \citet{wang2008}.}
+  \label{fig:capza2}
+\end{figure}
+
+\subsection{Types of genomic region}
+
+Combinations of chromatin marks distinguish several types of region (Figure~\ref{fig:chromatin_cartoon}).
+\begin{itemize}
+  \item \emph{Promoters} lie immediately upstream of a gene's transcription start site (TSS). Transcription factors bind there and recruit Pol II. Active promoters carry H3K4me3, along with H3K27ac and H3K9ac, and are accessible.
+  \item \emph{Enhancers} also bind transcription factors and increase transcription, but lie further from the gene they regulate, at least thousands and up to hundreds of thousands of nucleotides away along the linear sequence. To act they must come close to the promoter in three dimensions, through chromatin looping. Promoters and enhancers are more alike than different. The main distinction is distance from the gene, but there is also a difference in marks: H3K4me1 is stronger at enhancers than at promoters, and H3K4me3 is stronger at promoters. H3K27ac marks both when active.
+  \item \emph{Transcribed regions} are the bodies of genes being expressed in the cell type. They carry H3K36me3, which is deposited as Pol II moves along the gene, and H4K20me1 and H3K79me2.
+  \item \emph{Repressed regions} are not transcribed. Polycomb-repressed regions carry H3K27me3. Constitutive heterochromatin carries H3K9me3. Repressed chromatin is typically compacted and less accessible.
+  \item \emph{Poised} or bivalent regions carry both an activating mark (H3K4me3 or H3K4me1) and the repressive H3K27me3. They are not active but are ready to be: during development, a poised gene may be switched on at the next stage; in immune cells, a gene may be poised to respond to a stimulus.
+  \item \emph{Insulators} block communication between neighbouring parts of the genome. They are bound by CTCF and often lie at the boundaries of topologically associating domains (TADs), the regions of frequent three-dimensional contact revealed by Hi-C (Chapter 3).
+\end{itemize}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{slides/chromatin_state_cartoon.pdf}
+  \caption{Schematic of chromatin signals that distinguish types of genomic region. Top, nucleosomes (grey), transcription factors (TF) and Pol II along DNA. Tracks show chromatin accessibility, TF binding and binding sites (TFBS), Pol II, and six histone modifications. Bottom, the chromatin state each combination defines. \textbf{[Source to be confirmed.]}}
+  \label{fig:chromatin_cartoon}
+\end{figure}
+
+There are dozens of histone modifications, which can act alone or in combination, so the number of possible combinations is astronomical. Rather than define region types by hand from prior knowledge, we would like to learn the biologically meaningful combinations from their genome-wide co-occurrence. These combinations, together with their spatial context along the genome, define \emph{chromatin states}, which can then be interpreted as promoters, enhancers, transcribed regions and so on. A chromatin state annotation can be used to annotate the genome systematically and, when learned across cell types, to study how chromatin changes between them.
+
+%======================================================================
+\section{ChromHMM: setting up the data}
+\label{sec:chromhmm_data}
+%======================================================================
+
+ChromHMM~\citep{ernst2010,ernst2012} prepares the data in two steps.
+\begin{enumerate}
+  \item \emph{Binning.} The genome is divided into non-overlapping windows of 200 bp (the default bin size), and the reads of each ChIP-seq experiment are counted in each bin. For the human genome this gives about $3\times 10^9/200 = 1.5\times 10^7$ bins.
+  \item \emph{Binarization.} Each count is converted to 1 (mark present) or 0 (absent). The count is compared with a Poisson background distribution whose rate is the average count per bin for that experiment, or is set from a control (input) experiment, and the bin is called present if the count is significantly higher than expected from the background (by default, a Poisson upper-tail $p$-value below $10^{-4}$).
+\end{enumerate}
+The result is a binary matrix $\mY\in\{0,1\}^{S\times M}$, where $S$ is the number of bins and $M$ the number of marks. Entry $y_{tm}$ is 1 if mark $m\in\{1,\dots,M\}$ is present in bin $t\in\{1,\dots,S\}$, and row $t$ is the vector $\vy_t^\top$, with $\vy_t\in\{0,1\}^M$. Binarization discards information about signal strength, but it makes the model robust to differences in sequencing depth and signal-to-noise between experiments.
+
+We could cluster the $1.5\times 10^7$ vectors $\vy_t$ with any method from Chapter 5, for example a mixture of multivariate Bernoulli distributions. A clustering model treats the bins as independent and ignores their order. But there is structure in how region types follow each other along the genome. If bin $t$ is in a gene body, bin $t+1$ is most likely in the gene body too, since genes are typically thousands of nucleotides long. If bin $t$ is an active promoter, the next bins in the direction of transcription are likely to be transcribed. An HMM uses this structure to smooth the cluster assignments along the genome, which helps because the data are noisy: a single bin may lack a mark by chance even inside a region where the mark is present.
+
+Figure~\ref{fig:chromhmm_toy} shows the idea on a toy example. Each bin has a hidden state, which we do not observe. Each state has a characteristic probability of showing each mark, and consecutive states follow a pattern: an enhancer state, then promoter states at the TSS, then transcribed states along the gene, then a state with no marks. After fitting, states are interpreted by looking at which marks they emit.
+
+\begin{figure}[tbp]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    \def\w{1.12}
+    % DNA and annotation
+    \draw[thick] (0,0) -- (12*\w,0);
+    \node[left] at (0,0) {DNA};
+    \draw[decorate, decoration={brace, amplitude=4pt}] (0.05,0.15) -- (0.9*\w,0.15) node[midway, above=4pt] {enhancer};
+    \draw[->, thick] (1.5*\w,0) -- (1.5*\w,0.45) -- (2.2*\w,0.45);
+    \node[above] at (1.6*\w,0.5) {TSS};
+    \draw[decorate, decoration={brace, amplitude=4pt}] (2.05*\w,0.15) -- (9*\w-0.05,0.15) node[midway, above=4pt] {transcribed region};
+    \foreach \i in {0,...,12} \draw (\i*\w,-0.08) -- (\i*\w,0.08);
+    % observed marks
+    \node[left, align=right] at (0,-1.0) {observed\\marks};
+    \foreach \i/\a/\b in {0/K4me1/K27ac, 1/K4me3/K4me1, 2/K4me3/, 3/K4me1/, 4/K36me3/, 5/K36me3/, 6//, 7/K36me3/, 8/K36me3/} {
+      \node[font=\tiny] at (\i*\w+0.5*\w,-0.75) {\a};
+      \node[font=\tiny] at (\i*\w+0.5*\w,-1.1) {\b};
+    }
+    % hidden states
+    \node[left, align=right] at (0,-2.0) {hidden\\state};
+    \foreach \i/\s in {0/1,1/2,2/3,3/4,4/6,5/6,6/6,7/6,8/6,9/5,10/5,11/5} {
+      \node[draw, circle, inner sep=1.5pt, minimum size=0.5cm] (h\i) at (\i*\w+0.5*\w,-2.0) {\s};
+    }
+    \foreach \i [evaluate=\i as \j using int(\i+1)] in {0,...,10} \draw[->] (h\i) -- (h\j);
+    \draw[decorate, decoration={brace, mirror, amplitude=3pt}] (0.05,-2.4) -- (\w-0.05,-2.4) node[midway, below=3pt, font=\scriptsize] {200 bp};
+    % emission table
+    \node[anchor=north west, align=left, font=\scriptsize] at (0.3,-3.0) {%
+      \begin{tabular}{@{}cl@{\hspace{1.2em}}cl@{}}
+        \multicolumn{4}{@{}l}{high-probability marks in each state}\\
+        1: & K4me1 0.8, K27ac 0.8 & 4: & K4me1 0.7 \\
+        2: & K4me3 0.9, K4me1 0.8 & 5: & none \\
+        3: & K4me3 0.9 & 6: & K36me3 0.9
+      \end{tabular}};
+  \end{tikzpicture}
+  \caption{A toy chromatin state model, adapted from a teaching diagram by the ChromHMM authors. The genome is split into 200 bp bins. Each bin has an unobserved state (circles), and each state emits each histone mark (H3 prefix dropped) with a state-specific probability (bottom). The hidden states follow each other along the genome: enhancer (1), promoter flanks and TSS (2--4), transcribed (6), no signal (5). In bin 7 the transcribed state is inferred although no mark is observed, because of its neighbours. All probabilities are learned from the chromatin data alone.}
+  \label{fig:chromhmm_toy}
+\end{figure}
+
+%======================================================================
+\section{Conditional independence and graphical models}
+\label{sec:pgm}
+%======================================================================
+
+To write down the HMM precisely we need some background on probabilistic graphical models, which represent the dependencies among a set of random variables. The key concepts are independence and conditional independence.
+
+\subsection{Independence and conditional independence}
+
+Two random variables $A$ and $B$ are \emph{independent} if knowing $A$ tells us nothing about $B$, and vice versa. Formally, $P(A\mid B)=P(A)$ for all values of $A$ and $B$. Substituting into the product rule $P(A,B)=P(A\mid B)P(B)$ gives
+\begin{equation}
+  P(A,B) = P(A)\,P(B),
+\end{equation}
+so the joint distribution is the product of the marginals. We write $A\indep B$. The relation is symmetric: $P(A,B)=P(A)P(B)$ also implies $P(B\mid A)=P(B)$.
+
+$A$ and $B$ are \emph{conditionally independent} given a third variable $C$ if, once we know $C$, $A$ tells us nothing more about $B$,
+\begin{equation}
+  P(A\mid B,C) = P(A\mid C),
+\end{equation}
+or equivalently, by the product rule,
+\begin{equation}
+  P(A,B\mid C) = P(A\mid B,C)\,P(B\mid C) = P(A\mid C)\,P(B\mid C).
+\end{equation}
+We write $A\indep B\mid C$, which is the same statement as $B\indep A\mid C$.
+
+\subsection{Directed graphical models}
+
+A directed graphical model, or Bayesian network~\citep{pearl1988,koller2009}, represents a joint distribution over random variables $X_1,\dots,X_N$ by a directed acyclic graph with one node per variable. The joint distribution factorizes as a product of one term per variable, the conditional distribution of that variable given its parents in the graph,
+\begin{equation}
+  P(X_1,\dots,X_N) = \prod_{n=1}^N P\left(X_n \mid \operatorname{pa}(X_n)\right),
+  \label{eq:dag_factorization}
+\end{equation}
+where $\operatorname{pa}(X_n)$ is the set of parents of $X_n$. For the graph in Figure~\ref{fig:dag}a,
+\begin{equation}
+  P(X_1,X_2,X_3,X_4) = P(X_1)\,P(X_2)\,P(X_3\mid X_1,X_2)\,P(X_4\mid X_3).
+\end{equation}
+Missing edges encode independence assumptions. Here $X_1$ and $X_2$ have no parents and are independent, and $X_4$ depends on $X_1$ and $X_2$ only through $X_3$, so $X_4\indep(X_1,X_2)\mid X_3$. (``Graph'' here means a network, not a plot.) In the early 2000s there was much interest in learning the graph structure itself from data, for example from gene expression or clinical records. Structure learning is hard in general and we will not attempt it. We use graphs as a compact way to write down models such as the HMM.
+
+\begin{figure}[tbp]
+  \centering
+  \begin{tikzpicture}[>=Stealth, node distance=1.1cm, every node/.style={font=\small},
+      var/.style={draw, circle, minimum size=0.75cm, inner sep=0pt}]
+    % (a) toy DAG
+    \node at (-0.9,1.3) {(a)};
+    \node[var] (x1) at (0,1) {$X_1$};
+    \node[var] (x2) at (1.6,1) {$X_2$};
+    \node[var] (x3) at (0.8,-0.3) {$X_3$};
+    \node[var] (x4) at (0.8,-1.6) {$X_4$};
+    \draw[->] (x1) -- (x3); \draw[->] (x2) -- (x3); \draw[->] (x3) -- (x4);
+    % (b) confounder
+    \begin{scope}[xshift=4.3cm]
+      \node at (-1.3,1.3) {(b)};
+      \node[var] (c) at (0.8,1) {$C$};
+      \node[var] (a) at (0,-0.6) {$A$};
+      \node[var] (b) at (1.6,-0.6) {$B$};
+      \draw[->] (c) -- (a); \draw[->] (c) -- (b);
+      \node[above, align=center, font=\footnotesize] at (c.north) {subway\\delayed?};
+      \node[below, align=center, font=\footnotesize] at (a.south) {person 1\\late?};
+      \node[below, align=center, font=\footnotesize] at (b.south) {person 2\\late?};
+    \end{scope}
+    % (c) collider
+    \begin{scope}[xshift=8.6cm]
+      \node at (-1.3,1.3) {(c)};
+      \node[var] (a) at (0,1) {$A$};
+      \node[var] (b) at (1.6,1) {$B$};
+      \node[var] (c) at (0.8,-0.6) {$C$};
+      \draw[->] (a) -- (c); \draw[->] (b) -- (c);
+      \node[above, align=center, font=\footnotesize] at (a.north) {sprinkler\\on?};
+      \node[above, align=center, font=\footnotesize] at (b.north) {rained?};
+      \node[below, align=center, font=\footnotesize] at (c.south) {grass\\wet?};
+    \end{scope}
+  \end{tikzpicture}
+  \caption{Directed graphical models. (a) A toy graph whose joint distribution factorizes as $P(X_1)P(X_2)P(X_3\mid X_1,X_2)P(X_4\mid X_3)$. (b) A common cause (confounder): $A$ and $B$ are dependent but conditionally independent given $C$. (c) A collider: $A$ and $B$ are independent but become dependent given $C$.}
+  \label{fig:dag}
+\end{figure}
+
+\subsection{Dependent but conditionally independent: confounders}
+
+Suppose we are hosting a dinner, $A$ is whether one guest is late and $B$ is whether another guest is late. Both travel by subway, and $C$ is whether the subway is delayed (Figure~\ref{fig:dag}b). The graph gives
+\begin{equation}
+  P(A,B,C) = P(A\mid C)\,P(B\mid C)\,P(C).
+\end{equation}
+Conditioning on $C$,
+\begin{equation}
+  P(A,B\mid C) = \frac{P(A,B,C)}{P(C)} = P(A\mid C)\,P(B\mid C),
+\end{equation}
+so $A\indep B\mid C$. Marginally, however,
+\begin{equation}
+  P(A,B) = \sum_C P(A\mid C)\,P(B\mid C)\,P(C),
+\end{equation}
+which in general does not equal $P(A)P(B)=\left[\sum_C P(A\mid C)P(C)\right]\left[\sum_C P(B\mid C)P(C)\right]$, so $A$ and $B$ are not independent. If we know nothing about the subway and learn that the first guest is late, it becomes more likely that the subway is delayed, and so more likely that the second guest is late too. But if we have already checked that the subway is delayed, the first guest's text adds nothing about the second guest. The common cause $C$ is a \emph{confounder}.
+
+\subsection{Independent but not conditionally independent: explaining away}
+
+Now let $A$ be whether a sprinkler, set on a timer with no rain sensor, ran last night, $B$ whether it rained last night, and $C$ whether the grass is wet in the morning (Figure~\ref{fig:dag}c). The joint distribution is
+\begin{equation}
+  P(A,B,C) = P(A)\,P(B)\,P(C\mid A,B).
+\end{equation}
+Summing over $C$,
+\begin{equation}
+  P(A,B) = \sum_C P(A)\,P(B)\,P(C\mid A,B) = P(A)\,P(B)\underbrace{\sum_C P(C\mid A,B)}_{=1} = P(A)\,P(B),
+\end{equation}
+so $A\indep B$: the sprinkler timer knows nothing about the weather. Conditioning on $C$,
+\begin{equation}
+  P(A,B\mid C) = \frac{P(A)\,P(B)\,P(C\mid A,B)}{P(C)},
+\end{equation}
+which in general does not factorize as $P(A\mid C)P(B\mid C)$, because $P(C\mid A,B)$ couples $A$ and $B$. A node with two incoming arrows is called a \emph{collider}. Observing it makes its parents dependent.
+
+A numerical example shows the effect. Let $P(A=1)=0.5$ and $P(B=1)=0.2$, and let the grass be wet with probability 0 if neither cause occurred, 0.9 if exactly one did and 0.99 if both did. Then
+\begin{align}
+  P(C=1) &= 0.5\cdot 0.8\cdot 0.9 + 0.5\cdot 0.2\cdot 0.9 + 0.5\cdot 0.2\cdot 0.99 \nonumber\\ &= 0.36+0.09+0.099 = 0.549, \nonumber\\
+  P(B=1\mid C=1) &= \frac{0.09+0.099}{0.549} = 0.34, \nonumber\\
+  P(B=1\mid C=1, A=1) &= \frac{0.099}{0.36+0.099} = 0.22, \nonumber\\
+  P(B=1\mid C=1, A=0) &= \frac{0.09}{0.09} = 1 .
+\end{align}
+Seeing wet grass raises the probability of rain from 0.2 to 0.34. Learning that the sprinkler ran lowers it again to 0.22, because the sprinkler already explains the wet grass; learning that the sprinkler did not run makes rain certain. The two causes compete to explain the observation, a phenomenon called \emph{explaining away}.
+
+Explaining away is one of the central intuitions of graphical models, and we have met it before. In linear regression (Chapter 1) the coefficients are independent under the prior, but once we observe the response $\vy$ they become dependent. If two features are highly correlated, either could account for the signal in $\vy$, like rain and the sprinkler, and the posterior is uncertain about how much weight to put on each: the elongated likelihood contours of Chapter 1's colinearity example are explaining away between $\beta_1$ and $\beta_2$.
+
+%======================================================================
+\section{The hidden Markov model}
+\label{sec:hmm}
+%======================================================================
+
+\subsection{Generative process}
+
+An HMM has a sequence of hidden states $X_1,\dots,X_S$, one per position, and a sequence of observations $Y_1,\dots,Y_S$. Each state takes one of $K$ values, $X_t\in\{1,\dots,K\}$. The states form a Markov chain: $X_t$ depends on the past only through $X_{t-1}$. Each observation $Y_t$ depends only on the state $X_t$ at the same position (Figure~\ref{fig:hmm_graph}). The hidden states are \emph{latent variables}, variables in the model that we never observe, and models built this way are called latent variable models.
+
+\begin{figure}[tbp]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      var/.style={draw, circle, minimum size=0.8cm, inner sep=0pt},
+      obs/.style={draw, circle, minimum size=0.8cm, inner sep=0pt, fill=gray!25}]
+    \node[var] (x1) at (0,0) {$X_1$};
+    \node[var] (x2) at (1.6,0) {$X_2$};
+    \node (d1) at (3.0,0) {$\cdots$};
+    \node[var] (xtm) at (4.4,0) {$X_{t-1}$};
+    \node[var] (xt) at (6.0,0) {$X_t$};
+    \node (d2) at (7.4,0) {$\cdots$};
+    \node[var] (xs) at (8.8,0) {$X_S$};
+    \foreach \n/\l in {x1/Y_1, x2/Y_2, xtm/Y_{t-1}, xt/Y_t, xs/Y_S}
+      \node[obs, below=0.9cm of \n] (y\n) {$\l$};
+    \foreach \n in {x1, x2, xtm, xt, xs} \draw[->] (\n) -- (y\n);
+    \draw[->] (x1) -- node[above] {$\mT$} (x2);
+    \draw[->] (x2) -- (d1); \draw[->] (d1) -- (xtm);
+    \draw[->] (xtm) -- node[above] {$\mT$} (xt);
+    \draw[->] (xt) -- (d2); \draw[->] (d2) -- (xs);
+    \node[right=2pt] at ($(xt)!0.5!(yxt)$) {$\mE$};
+    \node[left, align=right] at (-0.6,0) {hidden states\\(latent)};
+    \node[left, align=right] at (-0.6,-1.7) {observations};
+    \node[right, align=left] at (9.5,0) {$X_t\in\{1,\dots,K\}$};
+    \node[right, align=left] at (9.5,-1.7) {$Y_t\in\{1,\dots,P\}$\\or $\vy_t\in\{0,1\}^M$};
+  \end{tikzpicture}
+  \caption{The hidden Markov model as a directed graphical model. Hidden states (white) form a Markov chain governed by the transition matrix $\mT$; each observation (shaded) depends only on the hidden state at the same position, through the emission matrix $\mE$.}
+  \label{fig:hmm_graph}
+\end{figure}
+
+The model has three sets of parameters.
+\begin{itemize}
+  \item The \emph{initial distribution} $\vpi\in\R^K$, with $\pi_i=P(X_1=i)$, $\pi_i\geq 0$ and $\sum_i\pi_i=1$.
+  \item The \emph{transition matrix} $\mT\in\R^{K\times K}$, with
+  \begin{equation}
+    T_{ij} = P(X_t=j\mid X_{t-1}=i),
+  \end{equation}
+  the probability of moving from state $i$ at position $t-1$ to state $j$ at position $t$. Each row is a probability distribution, $T_{ij}\geq 0$ and $\sum_j T_{ij}=1$. The same matrix is used at every position, so the chain is \emph{homogeneous}.
+  \item The \emph{emission} parameters, which give the distribution of an observation given the state. In the simplest case the observation is categorical, $Y_t\in\{1,\dots,P\}$, and the emission matrix $\mE\in\R^{K\times P}$ has entries
+  \begin{equation}
+    E_{ij} = P(Y_t=j\mid X_t=i),
+  \end{equation}
+  with $E_{ij}\geq 0$ and $\sum_j E_{ij}=1$. Row $i$ is the distribution of observations in state $i$.
+\end{itemize}
+We collect the parameters as $\vtheta=(\vpi,\mT,\mE)$. The generative process is: draw $X_1\sim\text{Categorical}(\vpi)$; for $t=2,\dots,S$ draw $X_t\mid X_{t-1}\sim\text{Categorical}(\mT_{X_{t-1},:})$, the row of $\mT$ for the previous state; and for each $t$ draw $Y_t\mid X_t\sim\text{Categorical}(\mE_{X_t,:})$.
+
+\subsection{The joint distribution}
+
+Applying the factorization~\eqref{eq:dag_factorization} to the graph in Figure~\ref{fig:hmm_graph}, the joint probability of a state sequence $x=(x_1,\dots,x_S)$ and observations $Y=(y_1,\dots,y_S)$ is
+\begin{equation}
+  P(x,Y\mid\vtheta) = P(x_1)\,P(y_1\mid x_1)\prod_{t=2}^S P(x_t\mid x_{t-1})\,P(y_t\mid x_t)
+  = \pi_{x_1}E_{x_1y_1}\prod_{t=2}^S T_{x_{t-1}x_t}E_{x_ty_t}.
+  \label{eq:hmm_joint}
+\end{equation}
+We use lower case $x_t$ for a particular value of the random variable $X_t$. It will be convenient to write the emission term at position $t$ as a function of the state,
+\begin{equation}
+  \phi_t(i) = P(y_t\mid X_t=i),
+\end{equation}
+and $\vphi_t\in\R^K$ for the vector of these values. For categorical emissions $\phi_t(i)=E_{iy_t}$, column $y_t$ of $\mE$. The observations are fixed, so $\vphi_t$ is a known vector once $\mE$ is given.
+
+The graph encodes the conditional independence properties that make the HMM tractable:
+\begin{itemize}
+  \item given $X_t$, the future states and observations $(X_{t+1:S},Y_{t+1:S})$ are independent of the past $(X_{1:t-1},Y_{1:t})$;
+  \item given $X_t$, the observation $Y_t$ is independent of everything else.
+\end{itemize}
+Here $Y_{a:b}$ denotes $(Y_a,\dots,Y_b)$. Note that the observations are \emph{not} independent of each other marginally: $Y_1$ and $Y_2$ are dependent through $X_1$ and $X_2$. This is what allows neighbouring bins to inform each other.
+
+\subsection{Emissions for chromatin data}
+
+In ChromHMM the observation at bin $t$ is a binary vector $\vy_t\in\{0,1\}^M$ over $M$ marks, not a single category. Treating each of the $2^M$ combinations as a category would need $K(2^M-1)$ emission parameters. Instead ChromHMM assumes that the marks are conditionally independent given the state, each Bernoulli,
+\begin{equation}
+  \phi_t(i) = P(\vy_t\mid X_t=i) = \prod_{m=1}^M E_{im}^{y_{tm}}\left(1-E_{im}\right)^{1-y_{tm}},
+  \label{eq:bernoulli_emission}
+\end{equation}
+where now $\mE\in[0,1]^{K\times M}$ and $E_{im}=P(y_{tm}=1\mid X_t=i)$ is the probability of observing mark $m$ in state $i$. The rows of this $\mE$ need not sum to one. Marks are correlated across the genome, but in this model only through the state: a promoter state has high probability of both H3K4me3 and H3K27ac. All the algorithms below use the emissions only through $\vphi_t$, so they apply unchanged to any emission model, including Gaussian or Poisson emissions for continuous or count data.
+
+\subsection{An HMM is a mixture model with dependencies}
+
+If every row of $\mT$ equals $\vpi$, then $P(X_t=j\mid X_{t-1}=i)=\pi_j$ regardless of $i$, the states are independent, and the HMM reduces to a mixture model with mixture weights $\vpi$ and component distributions given by the rows of $\mE$. The emission parameters play the role of the cluster centres. The HMM's new ingredient is the transition matrix, which says how likely we are, before seeing any data, to move from one state to another between consecutive bins.
+
+A large diagonal entry $T_{ii}$ means state $i$ tends to persist. The number of consecutive bins $L$ spent in state $i$ before leaving has a geometric distribution,
+\begin{equation}
+  P(L=\ell) = T_{ii}^{\ell-1}\left(1-T_{ii}\right), \qquad \E[L] = \frac{1}{1-T_{ii}},
+\end{equation}
+since we stay $\ell-1$ times and then leave (Figure~\ref{fig:dwell}). With 200 bp bins, $T_{ii}=0.99$ gives segments of 100 bins, or 20 kb, on average, the scale of a gene body, while $T_{ii}=0.8$ gives segments of about 1 kb, the scale of a promoter. The geometric distribution always has its mode at $\ell=1$; models that need other segment length distributions can use several states with the same emissions in series, or a hidden semi-Markov model.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{dwell_time.pdf}
+  \caption{Distribution of the number of consecutive bins spent in a state with self-transition probability $T_{ii}$. The distribution is geometric with mean $1/(1-T_{ii})$, so it is a straight line on a log scale.}
+  \label{fig:dwell}
+\end{figure}
+
+%======================================================================
+\section{Inference: the forward-backward algorithm}
+\label{sec:fb}
+%======================================================================
+
+\subsection{What we need to compute}
+
+We observe $Y$ but not the states $X$, and we do not know the parameters $\mT$ and $\mE$. As for $K$-means and mixture models in Chapter 5, we will fit the model by alternating between estimating the states given the parameters and estimating the parameters given the states. The first step requires the posterior distribution of the states given the data, $P(X\mid Y,\vtheta)$. Specifically, we need the \emph{posterior marginal} of each state,
+\begin{equation}
+\begin{split}
+  \gamma_t(i) = P(X_t=i\mid Y,\vtheta) = \sum_{x_1=1}^K\cdots\sum_{x_{t-1}=1}^K\;\sum_{x_{t+1}=1}^K\cdots\sum_{x_S=1}^K &P(x_1,\dots,x_{t-1},X_t=i,\\
+  &\quad x_{t+1},\dots,x_S\mid Y,\vtheta),
+\end{split}
+  \label{eq:marginal_naive}
+\end{equation}
+which sums the joint posterior over all values of every state except $X_t$. For example, with $S=3$, $P(X_2\mid Y)=\sum_{x_1}\sum_{x_3}P(x_1,X_2,x_3\mid Y)$. The marginal $\vgamma_t\in\R^K$ is a soft assignment of bin $t$ to the states, like the responsibilities of a mixture model.
+
+Evaluated directly,~\eqref{eq:marginal_naive} has $K^{S-1}$ terms. With $K=15$ states and $S=1.5\times 10^7$ bins this is hopeless, and even $K=2$, $S=100$ gives $2^{99}\approx 6\times 10^{29}$ terms. The forward-backward algorithm computes all the marginals $\vgamma_1,\dots,\vgamma_S$ in $O(SK^2)$ operations by exploiting the chain structure of the graph. It is an instance of \emph{belief propagation}~\citep{pearl1988}, a general class of algorithms for computing marginals in graphical models, which is in turn an instance of dynamic programming.
+
+\subsection{Why the chain structure helps}
+
+The saving comes from the distributive law, $ab+ac=a(b+c)$: factor out terms that do not depend on the summation variable before summing. Consider the probability of the data, $P(Y\mid\vtheta)=\sum_x P(x,Y\mid\vtheta)$. Using~\eqref{eq:hmm_joint} and moving each sum as far right as it can go,
+\begin{equation}
+  P(Y) = \sum_{x_S}\phi_S(x_S)\sum_{x_{S-1}}T_{x_{S-1}x_S}\,\phi_{S-1}(x_{S-1})\cdots\sum_{x_2}T_{x_2x_3}\,\phi_2(x_2)\sum_{x_1}T_{x_1x_2}\,\phi_1(x_1)\,\pi_{x_1}.
+\end{equation}
+The innermost sum over $x_1$ gives a function of $x_2$ only, a vector of length $K$, at a cost of $K^2$ operations. Multiplying by $\phi_2(x_2)$ and summing over $x_2$ gives a function of $x_3$, and so on. Each step costs $K^2$, so the total is $O(SK^2)$ instead of $O(K^S)$. The vectors passed from one sum to the next are the forward messages. Running the same idea from the other end of the chain gives the backward messages, and combining the two gives every marginal.
+
+\subsection{Forward pass}
+
+Define, for $t=1,\dots,S$ and $i=1,\dots,K$,
+\begin{align}
+  r_t(i) &= P(X_t=i\mid y_{1:t-1}) && \text{(predicted: state at $t$ given data before $t$)},\\
+  f_t(i) &= P(X_t=i\mid y_{1:t}) && \text{(filtered: state at $t$ given data up to $t$)},\\
+  c_t &= P(y_t\mid y_{1:t-1}) && \text{(normalizer)},
+\end{align}
+with $y_{1:0}$ empty, and write $\vr_t,\vf_t\in\R^K$ for the vectors. We suppress the conditioning on $\vtheta$. The recursion has two steps. Initially $\vr_1=\vpi$.
+
+\emph{Update with the observation.} By Bayes' rule, and because $y_t\indep y_{1:t-1}\mid X_t$,
+\begin{equation}
+  f_t(i) = \frac{P(y_t\mid X_t=i, y_{1:t-1})\,P(X_t=i\mid y_{1:t-1})}{P(y_t\mid y_{1:t-1})} = \frac{\phi_t(i)\,r_t(i)}{c_t},
+  \qquad c_t = \sum_{i=1}^K\phi_t(i)\,r_t(i).
+\end{equation}
+In vector form, $\vf_t=(\vr_t\odot\vphi_t)/c_t$, where $\odot$ is elementwise multiplication and $c_t=\vone^\top(\vr_t\odot\vphi_t)$ normalizes the vector to sum to one.
+
+\emph{Predict the next state.} Summing over the current state, and because $X_{t+1}\indep y_{1:t}\mid X_t$,
+\begin{equation}
+  r_{t+1}(j) = \sum_{i=1}^K P(X_{t+1}=j\mid X_t=i)\,P(X_t=i\mid y_{1:t}) = \sum_{i=1}^K T_{ij}\,f_t(i),
+  \qquad \vr_{t+1} = \mT^\top\vf_t .
+\end{equation}
+This is a matrix-vector product with dimensions $[K\times K][K\times 1]$, costing $K^2$ operations. Alternating the two steps from $t=1$ to $t=S$ is the forward pass.
+
+As a by-product the forward pass gives the likelihood. By the chain rule of probability,
+\begin{equation}
+  P(Y\mid\vtheta) = \prod_{t=1}^S P(y_t\mid y_{1:t-1}) = \prod_{t=1}^S c_t,
+  \qquad \log P(Y\mid\vtheta) = \sum_{t=1}^S\log c_t .
+  \label{eq:hmm_loglik}
+\end{equation}
+Normalizing $\vf_t$ at each step is also what makes the computation numerically feasible: the unnormalized joint $P(X_t,y_{1:t})$ is a product of $t$ probabilities and underflows to zero for long sequences, while $\vf_t$ is a probability vector and the likelihood is accumulated on the log scale.
+
+\subsection{Backward pass}
+
+The forward pass uses only the data up to position $t$. To use the data after $t$, define
+\begin{equation}
+  b_t(i) = P(y_{t+1:S}\mid X_t=i),
+\end{equation}
+the probability of the future observations given the current state, with $b_S(i)=1$ since there are no future observations. Summing over the next state and using the conditional independence properties of the chain,
+\begin{align}
+  b_t(i) &= \sum_{j=1}^K P(X_{t+1}=j\mid X_t=i)\,P(y_{t+1}\mid X_{t+1}=j)\,P(y_{t+2:S}\mid X_{t+1}=j) \nonumber\\
+  &= \sum_{j=1}^K T_{ij}\,\phi_{t+1}(j)\,b_{t+1}(j),
+  \qquad \vbw_t = \mT\left(\vphi_{t+1}\odot\vbw_{t+1}\right).
+\end{align}
+Note that $\mT$ appears here without a transpose: the backward message travels against the direction of the arrows. Running from $t=S-1$ down to $t=1$ is the backward pass. Only the shape of $\vbw_t$ as a function of $i$ matters below, so it can be rescaled by any positive constant at each step to avoid underflow; dividing by $c_{t+1}$ is a common choice.
+
+\subsection{Combining the messages}
+
+The data split into the past and present, $y_{1:t}$, and the future, $y_{t+1:S}$, which are conditionally independent given $X_t$. Therefore
+\begin{equation}
+  \gamma_t(i) = P(X_t=i\mid Y) \propto P(X_t=i\mid y_{1:t})\,P(y_{t+1:S}\mid X_t=i) = f_t(i)\,b_t(i),
+  \qquad \vgamma_t = \frac{\vf_t\odot\vbw_t}{\vone^\top(\vf_t\odot\vbw_t)} .
+  \label{eq:gamma}
+\end{equation}
+The forward message summarizes everything the observations at and before $t$ say about $X_t$, the backward message summarizes everything the later observations say, and their product, normalized, is the posterior marginal (Figure~\ref{fig:fb_messages}). One forward pass and one backward pass give the marginals at every position.
+
+\begin{figure}[tbp]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      var/.style={draw, circle, minimum size=0.8cm, inner sep=0pt},
+      obs/.style={draw, circle, minimum size=0.8cm, inner sep=0pt, fill=gray!25}]
+    \node[var] (xa) at (0,0) {$X_{t-1}$};
+    \node[var] (xt) at (2.8,0) {$X_t$};
+    \node[var] (xb) at (5.6,0) {$X_{t+1}$};
+    \node (l) at (-1.6,0) {$\cdots$};
+    \node (r) at (7.2,0) {$\cdots$};
+    \foreach \n/\lab in {xa/Y_{t-1}, xt/Y_t, xb/Y_{t+1}} \node[obs, below=0.9cm of \n] (y\n) {$\lab$};
+    \foreach \n in {xa, xt, xb} \draw[->] (\n) -- (y\n);
+    \draw[->] (l) -- (xa); \draw[->] (xa) -- (xt); \draw[->] (xt) -- (xb); \draw[->] (xb) -- (r);
+    \draw[->, very thick, red!70!black] (0.6,0.55) -- (2.2,0.55) node[midway, above] {$\vr_t=\mT^\top\vf_{t-1}$};
+    \draw[->, very thick, green!45!black] (5.0,0.55) -- (3.4,0.55) node[midway, above] {$\vbw_t$};
+    \draw[->, very thick, blue!60!black] (3.35,-1.0) -- (3.35,-0.45) node[midway, right] {$\vphi_t$};
+    \draw[dashed, red!70!black, rounded corners] (-2.1,-2.0) rectangle (3.95,1.25);
+    \draw[dashed, green!45!black, rounded corners] (5.05,-2.15) rectangle (7.7,1.4);
+    \node[red!70!black, anchor=north west] at (-2.1,-2.05) {$\vf_t$: data $y_{1:t}$};
+    \node[green!45!black, anchor=north east] at (7.7,-2.2) {$\vbw_t$: data $y_{t+1:S}$};
+  \end{tikzpicture}
+  \caption{Forward and backward messages for position $t$. The forward message combines the prediction $\vr_t$ from the left with the local evidence $\vphi_t$ to give $\vf_t$, which summarizes $y_{1:t}$. The backward message $\vbw_t=\mT(\vphi_{t+1}\odot\vbw_{t+1})$ summarizes $y_{t+1:S}$. The posterior marginal is proportional to $\vf_t\odot\vbw_t$.}
+  \label{fig:fb_messages}
+\end{figure}
+
+\subsection{Pairwise marginals}
+
+Learning the transition matrix also requires the posterior probability of each pair of consecutive states. For $t=2,\dots,S$, by the same argument,
+\begin{align}
+  \xi_t(i,j) &= P(X_{t-1}=i,X_t=j\mid Y) \nonumber\\
+  &\propto P(X_{t-1}=i\mid y_{1:t-1})\,P(X_t=j\mid X_{t-1}=i)\,P(y_t\mid X_t=j)\,P(y_{t+1:S}\mid X_t=j) \nonumber\\
+  &= f_{t-1}(i)\,T_{ij}\,\phi_t(j)\,b_t(j),
+  \label{eq:xi}
+\end{align}
+normalized so that $\sum_{i,j}\xi_t(i,j)=1$. In matrix form, $\xi_t\propto\mT\odot\left(\vf_{t-1}(\vphi_t\odot\vbw_t)^\top\right)$, a $K\times K$ matrix. Summing $\xi_t(i,j)$ over $j$ recovers $\gamma_{t-1}(i)$.
+
+The complete procedure is Algorithm~\ref{alg:fb}. Its cost is $O(SK^2)$ time and $O(SK)$ memory, since the forward messages must be stored until the backward pass reaches them. \citet{rabiner1989} gives a classic tutorial treatment, and Chapter 13 of \citet{bishop2006} a textbook one.
+
+\begin{algorithm}[tbp]
+  \caption{Forward-backward algorithm}
+  \label{alg:fb}
+  \begin{algorithmic}[1]
+    \Require initial distribution $\vpi$, transition matrix $\mT$, emission vectors $\vphi_1,\dots,\vphi_S$
+    \State $\vr_1\gets\vpi$
+    \For{$t=1,\dots,S$} \Comment{forward pass}
+      \State $c_t\gets\vone^\top(\vr_t\odot\vphi_t)$; \quad $\vf_t\gets(\vr_t\odot\vphi_t)/c_t$
+      \State $\vr_{t+1}\gets\mT^\top\vf_t$
+    \EndFor
+    \State $\vbw_S\gets\vone$
+    \For{$t=S-1,\dots,1$} \Comment{backward pass}
+      \State $\vbw_t\gets\mT(\vphi_{t+1}\odot\vbw_{t+1})/c_{t+1}$
+    \EndFor
+    \For{$t=1,\dots,S$}
+      \State $\vgamma_t\gets\vf_t\odot\vbw_t$ \Comment{sums to one with this scaling}
+      \State \textbf{if} $t\geq 2$: $\xi_t\gets\mT\odot\left(\vf_{t-1}(\vphi_t\odot\vbw_t)^\top\right)/c_t$
+    \EndFor
+    \State \Return $\vgamma_{1:S}$, $\xi_{2:S}$, $\log P(Y)=\sum_t\log c_t$
+  \end{algorithmic}
+\end{algorithm}
+
+With the scaling in Algorithm~\ref{alg:fb}, $\vbw_t$ equals $P(y_{t+1:S}\mid X_t)/P(y_{t+1:S}\mid y_{1:t})$, and then $\vf_t\odot\vbw_t$ and $\xi_t$ are already normalized. To see this, note that $P(y_{t+1:S}\mid y_{1:t})=\prod_{u=t+1}^S c_u$, and the recursion divides by exactly these factors.
+
+\subsection{Factor graphs and the sum-product algorithm}
+
+Forward-backward is a special case of the \emph{sum-product} algorithm on factor graphs~\citep{kschischang2001}, which computes marginals for any distribution of the form
+\begin{equation}
+  P(x) = \frac{1}{Z}\prod_{a}g_a(x_{\mathcal{N}(a)}),
+\end{equation}
+where each \emph{factor} $g_a$ is a non-negative function of a subset $\mathcal{N}(a)$ of the variables and $Z$ normalizes. A factor graph is a bipartite graph with a node for each variable, a node for each factor, and an edge between a factor and each variable it depends on. Messages are functions of a single variable, passed along edges in both directions:
+\begin{align}
+  \text{variable to factor:}\quad & q_{n\to a}(x_n) = \prod_{a'\in\mathcal{N}(n)\setminus a} r_{a'\to n}(x_n), \\
+  \text{factor to variable:}\quad & r_{a\to n}(x_n) = \sum_{x_{\mathcal{N}(a)\setminus n}} g_a(x_{\mathcal{N}(a)}) \prod_{n'\in\mathcal{N}(a)\setminus n} q_{n'\to a}(x_{n'}),
+\end{align}
+where $\mathcal{N}(n)$ is the set of factors that involve variable $n$. A variable with only one factor sends the message $q=1$; a factor with only one variable sends $r_{a\to n}(x_n)=g_a(x_n)$. The marginal of a variable is the normalized product of all its incoming messages, $P(x_n)\propto\prod_{a\in\mathcal{N}(n)}r_{a\to n}(x_n)$. On a graph without cycles (a tree) the result is exact, and every marginal is obtained by passing one message in each direction along every edge. Chapter 26 of \citet{mackay2003} is a readable introduction.
+
+\begin{figure}[tbp]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      var/.style={draw, circle, minimum size=0.75cm, inner sep=0pt},
+      fac/.style={draw, fill=black, minimum size=0.2cm, inner sep=0pt}]
+    \node at (-1.3,1.0) {(a)};
+    \node[fac, label=below:$g_0$] (f0) at (-0.8,0) {};
+    \node[var] (x1) at (0.5,0) {$x_1$};
+    \node[fac, label=below:$g_1$] (f1) at (1.8,0) {};
+    \node[var] (x2) at (3.1,0) {$x_2$};
+    \node[fac, label=below:$g_2$] (f2) at (4.4,0) {};
+    \node[var] (x3) at (5.6,0.7) {$x_3$};
+    \node[var] (x4) at (5.6,-0.7) {$x_4$};
+    \draw (f0) -- (x1) -- (f1) -- (x2) -- (f2) -- (x3); \draw (f2) -- (x4);
+    \draw[->, red!70!black] (1.0,0.3) -- (1.6,0.3);
+    \draw[->, red!70!black] (2.1,0.3) -- (2.7,0.3) node[midway, above] {\scriptsize $r_{g_1\to x_2}$};
+    \draw[->, red!70!black] (4.1,0.3) -- (3.5,0.3) node[midway, above] {\scriptsize $r_{g_2\to x_2}$};
+    \begin{scope}[yshift=-2.6cm]
+      \node at (-1.3,1.0) {(b)};
+      \node[fac, label=below:$\pi$] (p) at (-0.8,0) {};
+      \node[var] (h1) at (0.5,0) {$x_1$};
+      \node[fac, label=above:$\mT$] (t2) at (1.8,0) {};
+      \node[var] (h2) at (3.1,0) {$x_2$};
+      \node[fac, label=above:$\mT$] (t3) at (4.4,0) {};
+      \node (dots) at (5.4,0) {$\cdots$};
+      \node[var] (hs) at (6.6,0) {$x_S$};
+      \node[fac, label=below:$\phi_1$] (e1) at (0.5,-1.0) {};
+      \node[fac, label=below:$\phi_2$] (e2) at (3.1,-1.0) {};
+      \node[fac, label=below:$\phi_S$] (es) at (6.6,-1.0) {};
+      \draw (p) -- (h1) -- (t2) -- (h2) -- (t3) -- (dots) -- (hs);
+      \draw (h1) -- (e1); \draw (h2) -- (e2); \draw (hs) -- (es);
+    \end{scope}
+  \end{tikzpicture}
+  \caption{Factor graphs. Circles are variables and black squares are factors. (a) The distribution $P(x)\propto g_0(x_1)g_1(x_1,x_2)g_2(x_2,x_3,x_4)$; the marginal of $x_2$ is the product of the two messages arriving at it. (b) The HMM with the observations absorbed into the emission factors $\phi_t(x_t)=P(y_t\mid x_t)$; the transition factors are $T_{x_{t-1}x_t}$.}
+  \label{fig:factor_graph}
+\end{figure}
+
+As an example, take $P(x)\propto g_0(x_1)\,g_1(x_1,x_2)\,g_2(x_2,x_3,x_4)$ (Figure~\ref{fig:factor_graph}a). To find the marginal of $x_2$, the leaf factor $g_0$ sends $r_{g_0\to x_1}(x_1)=g_0(x_1)$; $x_1$ passes it on, $q_{x_1\to g_1}(x_1)=g_0(x_1)$; and $g_1$ sends $r_{g_1\to x_2}(x_2)=\sum_{x_1}g_1(x_1,x_2)\,g_0(x_1)$. On the other side, the leaf variables send $q_{x_3\to g_2}=q_{x_4\to g_2}=1$, and $g_2$ sends $r_{g_2\to x_2}(x_2)=\sum_{x_3,x_4}g_2(x_2,x_3,x_4)$. Then $P(x_2)\propto r_{g_1\to x_2}(x_2)\,r_{g_2\to x_2}(x_2)$. In a factor-to-variable message for a two-variable factor, the factor acts like a likelihood and the incoming message like a prior, and summing over the other variable marginalizes it.
+
+For the HMM (Figure~\ref{fig:factor_graph}b), the observed $y_t$ are fixed, so each emission becomes a single-variable factor $\phi_t(x_t)$, and the transitions are pairwise factors $T_{x_{t-1}x_t}$. Passing messages from left to right, the message from $x_t$ to the next transition factor is the product of its other incoming messages, $\vr_t\odot\vphi_t$, which is $\vf_t$ up to normalization. The message from that transition factor into $x_{t+1}$ is $\sum_{x_t}T_{x_tx_{t+1}}f_t(x_t)$, which is $\vr_{t+1}=\mT^\top\vf_t$. The messages in the other direction are the backward messages. Forward-backward is therefore sum-product on a chain.
+
+\subsection{The most probable state sequence: the Viterbi algorithm}
+
+The posterior marginals give, for each bin separately, the probability of each state. Sometimes we want a single segmentation instead. Taking $\hat x_t=\argmax_i\gamma_t(i)$ at each position maximizes the expected number of correctly assigned bins, and is how ChromHMM assigns each bin a state by default. An alternative is the single most probable state sequence, $\hat x=\argmax_x P(x\mid Y)$. The two can differ: the sequence of per-position maxima may even include a transition with $T_{ij}=0$.
+
+The most probable sequence is found by the \emph{Viterbi algorithm}~\citep{viterbi1967}, which replaces the sums in the forward pass by maximizations. Define $\delta_t(j)=\max_{x_{1:t-1}}\log P(x_{1:t-1},X_t=j,y_{1:t})$, the log probability of the best path that ends in state $j$ at position $t$. Then $\delta_1(j)=\log\pi_j+\log\phi_1(j)$ and
+\begin{equation}
+  \delta_t(j) = \log\phi_t(j) + \max_i\left[\delta_{t-1}(i)+\log T_{ij}\right],
+  \qquad \psi_t(j) = \argmax_i\left[\delta_{t-1}(i)+\log T_{ij}\right],
+\end{equation}
+where the back-pointer $\psi_t(j)$ records the best predecessor. The last state is $\hat x_S=\argmax_j\delta_S(j)$, and the rest are read off backwards, $\hat x_{t-1}=\psi_t(\hat x_t)$. Like forward-backward, Viterbi costs $O(SK^2)$; it is the max-product counterpart of the sum-product algorithm, and it works on the log scale so needs no rescaling.
+
+%======================================================================
+\section{Learning: expectation maximization}
+\label{sec:em}
+%======================================================================
+
+\subsection{The EM algorithm in general}
+
+Chapter 5 introduced expectation maximization for mixture models. Here we derive it in general. Let $Y$ be the observed data, $X$ the latent variables and $\vtheta$ the parameters; for the HMM, $\vtheta=(\vpi,\mT,\mE)$. We want the maximum likelihood estimate, which maximizes the \emph{marginal} likelihood
+\begin{equation}
+  \log P(Y\mid\vtheta) = \log\sum_X P(Y,X\mid\vtheta).
+\end{equation}
+The log of a sum is hard to maximize directly. Introduce any distribution $q(X)$ over the latent variables that is positive wherever $P(Y,X\mid\vtheta)$ is. Multiplying and dividing by $q(X)$, and using Jensen's inequality for the concave $\log$, $\log\E_q[Z]\geq\E_q[\log Z]$,
+\begin{equation}
+  \log P(Y\mid\vtheta) = \log\sum_X q(X)\,\frac{P(Y,X\mid\vtheta)}{q(X)} \;\geq\; \sum_X q(X)\log\frac{P(Y,X\mid\vtheta)}{q(X)} \;=:\; \mathcal{F}(q,\vtheta).
+  \label{eq:elbo}
+\end{equation}
+$\mathcal{F}$ is a lower bound on the log likelihood for every $q$, often called the evidence lower bound. Writing $P(Y,X\mid\vtheta)=P(X\mid Y,\vtheta)\,P(Y\mid\vtheta)$ shows how loose the bound is,
+\begin{equation}
+  \mathcal{F}(q,\vtheta) = \log P(Y\mid\vtheta) - \sum_X q(X)\log\frac{q(X)}{P(X\mid Y,\vtheta)} = \log P(Y\mid\vtheta) - \KL\left(q\,\|\,P(X\mid Y,\vtheta)\right),
+\end{equation}
+where $\KL$ is the Kullback-Leibler divergence, which is non-negative and zero only when its two arguments are equal. EM maximizes $\mathcal{F}$ by coordinate ascent, alternating between $q$ and $\vtheta$~\citep{dempster1977,neal1998}.
+\begin{itemize}
+  \item \textbf{E step}: maximize $\mathcal{F}$ over $q$ with $\vtheta$ fixed. Since only the KL term depends on $q$, the optimum is the posterior, $q(X)=P(X\mid Y,\vtheta^{\text{old}})$, at which the bound is tight, $\mathcal{F}=\log P(Y\mid\vtheta^{\text{old}})$.
+  \item \textbf{M step}: maximize $\mathcal{F}$ over $\vtheta$ with $q$ fixed. Splitting the logarithm in~\eqref{eq:elbo}, $\mathcal{F}=\sum_X q(X)\log P(Y,X\mid\vtheta)-\sum_X q(X)\log q(X)$, and the second term (the entropy of $q$) does not depend on $\vtheta$, so
+  \begin{equation}
+    \vtheta^{\text{new}} = \argmax_{\vtheta}\;\E_{q}\left[\log P(Y,X\mid\vtheta)\right].
+    \label{eq:mstep}
+  \end{equation}
+\end{itemize}
+Each iteration cannot decrease the likelihood:
+\begin{equation}
+  \log P(Y\mid\vtheta^{\text{new}}) \geq \mathcal{F}(q,\vtheta^{\text{new}}) \geq \mathcal{F}(q,\vtheta^{\text{old}}) = \log P(Y\mid\vtheta^{\text{old}}).
+\end{equation}
+The first inequality is the bound, the second holds because the M step maximizes over $\vtheta$, and the equality holds because the E step made the bound tight. The M step is usually easy because $\log P(Y,X\mid\vtheta)$, the \emph{complete-data} log likelihood, is a sum of simple terms, and its expectation under $q$ needs only a few posterior summaries. EM converges to a local maximum (more precisely, a stationary point) of the likelihood, not necessarily the global one.
+
+\subsection{Baum-Welch: EM for the HMM}
+
+EM for HMMs is called the Baum-Welch algorithm, after work that predates the general formulation of EM~\citep{baum1970}. The E step is the forward-backward algorithm, which gives the posterior summaries $\gamma_t(i)$ and $\xi_t(i,j)$. For the M step we need the expected complete-data log likelihood. Taking the log of~\eqref{eq:hmm_joint} and writing each term with indicator functions, so that the choice of parameter is explicit,
+\begin{equation}
+\begin{split}
+  \log P(x,Y\mid\vtheta) = {}&\sum_{i=1}^K\ind[x_1=i]\log\pi_i + \sum_{t=2}^S\sum_{i=1}^K\sum_{j=1}^K\ind[x_{t-1}=i]\,\ind[x_t=j]\log T_{ij} \\
+  &+ \sum_{t=1}^S\sum_{i=1}^K\ind[x_t=i]\log\phi_t(i).
+\end{split}
+\end{equation}
+This is linear in the indicators, so its expectation under $q(x)=P(x\mid Y,\vtheta^{\text{old}})$ replaces each indicator by its posterior probability, $\E_q\ind[x_t=i]=\gamma_t(i)$ and $\E_q\left(\ind[x_{t-1}=i]\,\ind[x_t=j]\right)=\xi_t(i,j)$:
+\begin{equation}
+  \E_q\left[\log P(x,Y\mid\vtheta)\right] = \sum_{i}\gamma_1(i)\log\pi_i + \sum_{i,j}D_{ij}\log T_{ij} + \sum_{t=1}^S\sum_{i}\gamma_t(i)\log\phi_t(i),
+  \qquad D_{ij}=\sum_{t=2}^S\xi_t(i,j),
+  \label{eq:expected_cll}
+\end{equation}
+where $\mD\in\R^{K\times K}$ holds the expected number of transitions from $i$ to $j$. The three terms involve separate parameters, $\vpi$, $\mT$ and $\mE$, and can be maximized separately. Each is a weighted version of the maximum likelihood problem for a categorical distribution, which we solve first.
+
+\subsection{Maximum likelihood for the categorical distribution}
+
+Let $z_1,\dots,z_N$ be draws from a categorical distribution over $\{1,\dots,K\}$ with probabilities $\vp\in\R^K$, $p_k\geq 0$, $\sum_k p_k=1$. The likelihood is $\prod_n\prod_k p_k^{\ind[z_n=k]}$, and the log likelihood is
+\begin{equation}
+  \sum_{n=1}^N\sum_{k=1}^K\ind[z_n=k]\log p_k = \sum_{k=1}^K C_k\log p_k, \qquad C_k = \sum_{n=1}^N\ind[z_n=k],
+\end{equation}
+where $C_k$ is the number of draws equal to $k$. (The vector of counts has a multinomial distribution with $N=\sum_k C_k$ trials.) We maximize subject to $\sum_k p_k=1$ with a Lagrange multiplier $\lambda$. Setting the derivative of $\sum_k C_k\log p_k+\lambda\left(1-\sum_k p_k\right)$ with respect to $p_k$ to zero gives $C_k/p_k=\lambda$, so $p_k=C_k/\lambda$; the constraint gives $\lambda=\sum_k C_k$. Hence
+\begin{equation}
+  \hat p_k = \frac{C_k}{\sum_{k'=1}^K C_{k'}},
+  \label{eq:cat_mle}
+\end{equation}
+the normalized counts. The derivation only used $C_k\geq 0$, so it holds unchanged when the counts are replaced by non-negative \emph{expected} counts, which is exactly the situation in the M step.
+
+\subsection{M-step updates}
+
+\emph{Initial distribution.} The first term of~\eqref{eq:expected_cll} has the form $\sum_i C_i\log\pi_i$ with $C_i=\gamma_1(i)$, so $\hat\pi_i=\gamma_1(i)$.
+
+\emph{Transition matrix.} The second term is a sum over rows $i$ of $\sum_j D_{ij}\log T_{ij}$, with a separate constraint $\sum_j T_{ij}=1$ for each row. By~\eqref{eq:cat_mle},
+\begin{equation}
+  \hat T_{ij} = \frac{D_{ij}}{\sum_{j'}D_{ij'}} = \frac{\sum_{t=2}^S\xi_t(i,j)}{\sum_{t=2}^S\gamma_{t-1}(i)},
+\end{equation}
+the expected number of transitions from $i$ to $j$ divided by the expected number of transitions out of $i$. If the states were observed this would be the empirical transition frequency; EM uses the posterior expected counts instead.
+
+\emph{Categorical emissions.} With $\phi_t(i)=E_{iy_t}=\prod_j E_{ij}^{\ind[y_t=j]}$, the third term is
+\begin{equation}
+  \sum_{t=1}^S\sum_{i=1}^K\sum_{j=1}^P\gamma_t(i)\,\ind[y_t=j]\log E_{ij} = \sum_{i,j}C_{ij}\log E_{ij},
+  \qquad C_{ij}=\sum_{t=1}^S\gamma_t(i)\,\ind[y_t=j],
+\end{equation}
+where $\mC\in\R^{K\times P}$ holds the expected number of times state $i$ emits symbol $j$. Each row of $\mE$ is a probability distribution over the $P$ symbols, so $\hat E_{ij}=C_{ij}/\sum_{j'}C_{ij'}=\sum_t\gamma_t(i)\ind[y_t=j]/\sum_t\gamma_t(i)$.
+
+\emph{Bernoulli emissions (ChromHMM).} With~\eqref{eq:bernoulli_emission}, the third term is
+\begin{equation}
+  \sum_{t=1}^S\sum_{i=1}^K\gamma_t(i)\sum_{m=1}^M\left[y_{tm}\log E_{im}+(1-y_{tm})\log(1-E_{im})\right].
+\end{equation}
+Setting the derivative with respect to $E_{im}$ to zero, $\sum_t\gamma_t(i)\left[y_{tm}/E_{im}-(1-y_{tm})/(1-E_{im})\right]=0$, and solving,
+\begin{equation}
+  \hat E_{im} = \frac{\sum_{t=1}^S\gamma_t(i)\,y_{tm}}{\sum_{t=1}^S\gamma_t(i)},
+\end{equation}
+the posterior-weighted fraction of bins in state $i$ that carry mark $m$. In matrix form, $\hat\mE=\operatorname{diag}(\vone^\top\Gamma)^{-1}\Gamma^\top\mY$, where $\Gamma\in\R^{S\times K}$ has rows $\vgamma_t^\top$.
+
+These updates have the same form as the weighted (soft) $K$-means and mixture model updates of Chapter 5: each bin contributes to the estimate for state $i$ in proportion to its posterior probability of being in state $i$. The difference is that for the HMM the posterior probabilities come from forward-backward, so they account for neighbouring bins.
+
+\begin{algorithm}[tbp]
+  \caption{Baum-Welch (EM) for an HMM with Bernoulli emissions}
+  \label{alg:bw}
+  \begin{algorithmic}[1]
+    \Require binary data $\mY\in\{0,1\}^{S\times M}$, number of states $K$
+    \State initialize $\vpi$, $\mT$, $\mE$ (e.g.\ at random)
+    \Repeat
+      \State compute $\vphi_t$ for all $t$ by~\eqref{eq:bernoulli_emission}
+      \State $\vgamma_{1:S},\xi_{2:S},\log P(Y)\gets$ \Call{ForwardBackward}{$\vpi,\mT,\vphi_{1:S}$} \Comment{E step}
+      \State $\hat\pi_i\gets\gamma_1(i)$ \Comment{M step}
+      \State $\hat T_{ij}\gets\sum_{t\geq 2}\xi_t(i,j)\big/\sum_{t\geq 2}\gamma_{t-1}(i)$
+      \State $\hat E_{im}\gets\sum_t\gamma_t(i)y_{tm}\big/\sum_t\gamma_t(i)$
+    \Until{the increase in $\log P(Y)$ is below a tolerance}
+  \end{algorithmic}
+\end{algorithm}
+
+\subsection{Practical points}
+
+\begin{itemize}
+  \item \emph{Multiple sequences.} The genome consists of many chromosomes, and ChromHMM fits one model jointly across several cell types. Each chromosome in each cell type is a separate sequence. Forward-backward is run on each sequence separately, and the expected counts $\gamma$, $\xi$ and $\mC$ are summed over sequences before normalizing; $\vpi$ is the average of $\vgamma_1$ over sequences. Fitting across cell types gives a single set of states whose definitions are shared, while their locations can differ between cell types.
+  \item \emph{Convergence.} The log likelihood~\eqref{eq:hmm_loglik} is a by-product of the E step and increases monotonically, so it is the natural convergence check. EM typically makes rapid progress in the first iterations and does not require choosing a learning rate, unlike gradient descent.
+  \item \emph{Local optima.} Like $K$-means, EM finds a local optimum that depends on the initialization, so different runs give different solutions. Common practice is to run from several initializations and keep the solution with the highest likelihood. Spectral methods, based on the singular value decomposition of moments of the data, estimate HMM parameters without local optima~\citep{hsu2012}. They tend to give lower likelihood than a well-initialized EM run but always return the same answer, and they make a good initialization for EM.
+  \item \emph{Label switching.} The likelihood is unchanged if the state labels are permuted, so state numbers from different fits are arbitrary. States are named after fitting by inspecting their emission parameters.
+  \item \emph{Zero probabilities.} If a state never emits a mark in the expected counts, $\hat E_{im}=0$ and any later bin with that mark gets probability zero in that state. Adding a small pseudocount to the expected counts, equivalent to a Dirichlet or beta prior and MAP estimation, avoids this.
+  \item \emph{Number of states.} $K$ is a modelling choice. The likelihood always improves with more states, so it cannot be chosen by likelihood alone; in practice $K$ is chosen to balance interpretability and resolution, as discussed in Section~\ref{sec:chromhmm_results}.
+\end{itemize}
+
+%======================================================================
+\section{A simulated example}
+\label{sec:simulation}
+%======================================================================
+
+To see the algorithms at work we simulate from a small chromatin HMM with $K=5$ states (promoter, enhancer, transcribed, Polycomb-repressed and quiescent) and $M=5$ marks (H3K4me3, H3K27ac, H3K4me1, H3K36me3 and H3K27me3). The true emission and transition matrices are shown in the left column of Figure~\ref{fig:bw_params}. The emissions are noisy: the transcribed state shows H3K36me3 in only 55\% of its bins, and every state shows every mark occasionally. The transitions have large diagonals, and promoters tend to be followed by transcribed regions. We simulate $S=20{,}000$ bins, about 4 Mb.
+
+Figure~\ref{fig:hmm_posterior} compares inference with the true parameters under the HMM and under a mixture model with the same emissions and mixture weights equal to the stationary distribution of the chain. The mixture model assigns each bin from its own marks only, so a transcribed bin that happens to lack H3K36me3 looks quiescent. The HMM borrows strength from neighbouring bins and recovers contiguous segments. Over all $20{,}000$ bins, the state with the highest posterior probability is correct for 96.0\% of bins under the HMM and 73.8\% under the mixture model. The Viterbi path is correct for 95.9\% of bins, close to the posterior-marginal assignment, as expected when the posterior is concentrated.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\linewidth]{hmm_posterior.pdf}
+  \caption{Inference in a simulated chromatin HMM, for a window of 300 bins. From top: the binary marks (black, present); the true hidden states; the HMM posterior marginals $\gamma_t(i)$ from forward-backward (opacity proportional to probability); the Viterbi path; and the posterior of a mixture model with the same emission parameters but independent bins. The mixture model's assignments flicker between states wherever marks are missing by chance; the HMM's are smooth.}
+  \label{fig:hmm_posterior}
+\end{figure}
+
+We then fit the model by Baum-Welch from eight random initializations (Figure~\ref{fig:bw_trace}). Each run increases the log likelihood monotonically and converges within a few tens of iterations, but the runs converge to different local optima. Three runs reach the same highest value, $-1.3318$ per bin, slightly above the log likelihood of the true parameters, $-1.3328$, as expected since the maximum likelihood estimate fits the particular sample. The others stall at lower values, for example by merging two true states into one and splitting another. After permuting the state labels to match the truth, the best run recovers every emission probability to within 0.04 and every transition probability to within 0.02 (Figure~\ref{fig:bw_params}).
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{baum_welch_trace.pdf}
+  \caption{Log likelihood per bin during Baum-Welch from eight random initializations on 20{,}000 simulated bins. The dashed line is the log likelihood of the true parameters. Each run increases monotonically, but runs end at different local optima.}
+  \label{fig:bw_trace}
+\end{figure}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{baum_welch_params.pdf}
+  \caption{True (left) and estimated (right) emission matrix $E_{im}=P(y_{tm}=1\mid X_t=i)$ (top) and transition matrix $T_{ij}$ (bottom) for the best of the Baum-Welch runs in Figure~\ref{fig:bw_trace}. Estimated states were relabelled to match the true states.}
+  \label{fig:bw_params}
+\end{figure}
+
+%======================================================================
+\section{ChromHMM in practice}
+\label{sec:chromhmm_results}
+%======================================================================
+
+\subsection{Chromatin states in nine cell types}
+
+\citet{ernst2011} applied ChromHMM to nine chromatin marks, eight histone modifications and CTCF, measured by ChIP-seq in nine human cell types: embryonic stem cells (H1 ES), the leukaemia cell line K562, the lymphoblastoid cell line GM12878, the liver cancer cell line HepG2, umbilical vein endothelial cells (HUVEC), skeletal muscle myoblasts (HSMM), lung fibroblasts (NHLF), epidermal keratinocytes (NHEK) and mammary epithelial cells (HMEC). Lymphoblastoid cell lines are made by transforming B cells with Epstein-Barr virus, which immortalizes them, and have long been a workhorse of human genetics. The 81 tracks, comprising 2.4 billion reads, were summarized by a single 15-state model learned jointly across all cell types, giving one chromatin state annotation track per cell type.
+
+The states were named after fitting, mainly from their emission parameters (Figure~\ref{fig:chromhmm_emissions}, left). State 1 has high probability of H3K4me3, H3K4me2, H3K27ac and H3K9ac and was labelled an active promoter. States 4 and 5 have strong H3K4me1 with H3K27ac and were labelled strong enhancers; states 6 and 7 have H3K4me1 without H3K27ac and were labelled weak or poised enhancers. State 3 combines H3K4me2 and H3K4me3 with H3K27me3, the bivalent signature of a poised promoter. State 8 is dominated by CTCF and was labelled an insulator. States 9 and 10 carry H3K36me3 and H4K20me1, the marks of transcription, and state 11 a weaker version of the same signal. State 12 carries H3K27me3 alone (Polycomb repression), state 13 has almost no signal (heterochromatin or quiescent), and states 14--15 have high signal for every mark including the input control (WCE), which indicates artefacts from repeats or copy number variation rather than biology. The labels were not given to the model. They are an interpretation, aided by the enrichment of each state in independently annotated genomic features (Figure~\ref{fig:chromhmm_emissions}, right): promoter states are enriched at annotated transcription start sites and CpG islands, transcribed states in gene bodies and at transcription end sites, and the heterochromatin state at the nuclear lamina. Promoters and enhancers both split into several states that differ in signal strength.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\linewidth]{slides/chromhmm_emissions.png}
+  \caption{A 15-state ChromHMM model learned across nine cell types. Left, the state labels assigned after fitting. Middle, emission parameters: the probability of observing each mark in each state (darker is higher). WCE is whole-cell extract, the input control. Right, fold enrichment of each state in genomic annotations in GM12878 cells: transcription start and end sites (TSS, TES), CpG islands, exons, gene bodies, conserved elements and lamina-associated domains; the first column is the percentage of the genome in each state. Reproduced from \citet{ernst2011}.}
+  \label{fig:chromhmm_emissions}
+\end{figure}
+
+The learned transition matrix (Figure~\ref{fig:chromhmm_transitions}) is close to diagonal. Bins tend to stay in the same state, which is the smoothing effect discussed above. The off-diagonal structure is weak but interpretable: for example, the weak promoter state transitions to the weak enhancer states, and several states transition to the heterochromatin state. A full $K\times K$ matrix is arguably more flexible than needed, since a single self-transition probability per state would capture most of it, but learning it costs little.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.5\linewidth]{slides/chromhmm_transitions.png}
+  \caption{Transition matrix of the 15-state model in Figure~\ref{fig:chromhmm_emissions}; entry $(i,j)$ is $T_{ij}$, darker is higher. Reproduced from \citet{ernst2011}.}
+  \label{fig:chromhmm_transitions}
+\end{figure}
+
+\subsection{Cell-type-specific activity}
+
+State definitions are shared across cell types, so the same combinations of marks are found in each, but state locations are cell type specific. Figure~\ref{fig:chromhmm_celltypes} shows a region of chromosome 1 around the gene \textit{WLS}. In the five cell types on the right (HUVEC, HSMM, NHLF, NHEK and HMEC) the gene has an active promoter (red) followed by transcribed states (green) and nearby enhancers (orange, yellow). In K562, GM12878 and HepG2 it is mostly in the quiescent or Polycomb-repressed states and is probably not expressed; the raw data show no H3K27ac there. In H1 ES cells the promoter is in the poised state (purple), with high H3K27me3: the gene is silent but primed for activation during differentiation.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\linewidth]{slides/chromhmm_nine_celltypes.png}
+  \caption{Chromatin states across nine cell types in an 830 kb region of chromosome 1 containing the gene \textit{WLS}. Middle, one row of states per cell type, coloured by the legend at right. Top, the underlying binarized ChIP-seq data around \textit{WLS} in four cell types, where it is poised (H1 ES), repressed (GM12878) or active (HUVEC, NHLF). Reproduced from \citet{ernst2011}.}
+  \label{fig:chromhmm_celltypes}
+\end{figure}
+
+The Roadmap Epigenomics project applied the same approach to 111 reference epigenomes~\citep{roadmap2015}, and the approach has since been applied to hundreds of cell types (Figure~\ref{fig:pax5}). Stacking the annotations of many cell types, each row a cell type and each column a genomic bin, shows which elements are active in which cell types. Promoters of broadly expressed genes are active almost everywhere, while many enhancers are active only in one lineage. Across cell types, roughly 25{,}000 genes and of the order of one to two million candidate regulatory elements have been catalogued~\citep{roadmap2015,encode2020}; the exact number depends on thresholds and is probably an overestimate of truly functional elements.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{slides/pax5_states_celltypes.png}
+  \caption{Chromatin states around the B cell transcription factor gene \textit{PAX5} (bottom) across many cell and tissue types (rows, grouped by lineage at left). Green indicates transcribed states, red and orange active regulatory states, and grey repressed states. Elements and genes are active in some lineages and repressed in others. \textbf{[Source to be confirmed; likely the Roadmap Epigenomics Consortium~\citep{roadmap2015}.]}}
+  \label{fig:pax5}
+\end{figure}
+
+\subsection{Uses of chromatin state annotations}
+
+Chromatin state maps are a foundation for much downstream work. A common use is to interpret disease-associated genetic variants (Chapter 11). If variants associated with a disease are enriched in the enhancers of a particular cell type, that cell type is likely relevant to the disease. For Alzheimer's disease, risk variants are most enriched in enhancers active in microglia, the immune cells of the brain, rather than in neurons, astrocytes or oligodendrocytes~\citep{nott2019}, which implicates the immune system in a disease long thought of as neuronal. The annotations also prioritize elements for experimental perturbation.
+
+They also pose machine learning problems that later chapters take up: predicting regulatory elements and their cell-type-specific activity from sequence (Chapters 2 and 3), predicting which elements regulate which genes in which cell types, and predicting gene expression from the activity of regulatory elements.
+
+ChromHMM is still widely used, but it is not the only approach. Segway~\citep{hoffman2012} uses a dynamic Bayesian network with continuous (Gaussian) emissions at single base-pair resolution, and \citet{libbrecht2021} review the broader family of genome segmentation methods.
+
+\subsection{Choosing the number of states}
+
+Choosing $K$ was one of several practical challenges in the original work, along with training on all chromosomes and converting continuous signal into binary calls~\citep{ernst2010}. \citet{ernst2010} learned models with many states and then derived compact models with fewer states that captured the distinctions of the larger ones, a nested approach. The result is a model whose states are interpretable and whose distinctions are supported by the data, but the choice is a judgement call. Other researchers rerunning the analysis with a different $K$ or different initialization would obtain somewhat different states.
+
+%======================================================================
+\section{Summary}
+%======================================================================
+
+\begin{itemize}
+  \item Chromatin states are recurring combinations of histone modifications and other chromatin marks, which correspond to region types such as promoters, enhancers, transcribed regions, insulators and repressed or poised regions. ChromHMM learns them from binarized ChIP-seq data in 200 bp bins.
+  \item Directed graphical models represent a joint distribution as a product of conditionals of each variable given its parents. Confounders make variables dependent but conditionally independent; colliders make independent variables dependent once observed (explaining away).
+  \item An HMM generalizes a mixture (clustering) model by making the cluster assignments of consecutive positions dependent through a transition matrix $\mT$. The emission parameters $\mE$ play the role of cluster centres.
+  \item The forward-backward algorithm computes the posterior marginal of every state, and the likelihood, in $O(SK^2)$ time by passing messages along the chain, instead of summing over $K^{S}$ state sequences. It is the sum-product (belief propagation) algorithm on a chain. The Viterbi algorithm finds the single most probable state sequence.
+  \item The Baum-Welch algorithm is EM for the HMM: it alternates between forward-backward (E step) and re-estimating $\vpi$, $\mT$ and $\mE$ from expected counts (M step). The likelihood increases monotonically, but the solution depends on the initialization.
+  \item States are named after fitting from their emission parameters and enrichments. Their definitions are shared across cell types while their locations are cell type specific, which reveals cell type identity and helps interpret disease-associated variants.
+\end{itemize}
+
+%======================================================================
+\section*{Exercises}
+%======================================================================
+
+\begin{enumerate}
+  \item For the confounder graph of Figure~\ref{fig:dag}b, choose numerical values of $P(C)$, $P(A\mid C)$ and $P(B\mid C)$ and verify that $P(B=1\mid A=1)>P(B=1)$ but $P(B=1\mid A=1,C=1)=P(B=1\mid C=1)$.
+  \item Show that if every row of $\mT$ equals $\vpi$, the HMM posterior marginals~\eqref{eq:gamma} reduce to the responsibilities of a mixture model, $\gamma_t(i)\propto\pi_i\phi_t(i)$.
+  \item Show that $\sum_{j}\xi_t(i,j)=\gamma_{t-1}(i)$ using~\eqref{eq:gamma} and~\eqref{eq:xi}, and hence that the rows of $\hat\mT$ sum to one.
+  \item Derive the update for $E_{im}$ under Bernoulli emissions with a $\text{Beta}(\alpha,\alpha)$ prior on each $E_{im}$, using MAP estimation in the M step. Interpret $\alpha$ as a pseudocount.
+  \item Suppose the observations are read counts $y_t\in\{0,1,2,\dots\}$ rather than binary calls, with $y_t\mid X_t=i\sim\text{Poisson}(\lambda_i)$. Which parts of forward-backward and Baum-Welch change? Derive the M-step update for $\lambda_i$.
+  \item Implement forward-backward and check it against brute-force enumeration of all $K^S$ state sequences for $K=3$, $S=5$. Then implement Viterbi and confirm that it returns the most probable sequence.
+  \item Simulate data from the model of Section~\ref{sec:simulation} and fit it with $K=3$, $5$ and $8$ states. How do the learned emission matrices relate to the true states? What happens to the log likelihood as $K$ increases?
+\end{enumerate}
