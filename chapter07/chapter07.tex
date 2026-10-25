@@ -1,0 +1,747 @@
+% Chapter 7: recurrent neural networks and DNA methylation.
+% Requires: amsmath, amssymb, bm, graphicx, booktabs, subcaption, tikz (arrows.meta, positioning, calc,
+% decorations.pathreplacing, fit), natbib.
+% Computed figures are produced by scripts/make_figures.py; figures/slides/ holds figures taken from the lecture slides.
+
+\providecommand{\R}{\mathbb{R}}
+\providecommand{\E}{\mathbb{E}}
+\providecommand{\Normal}{\mathcal{N}}
+\providecommand{\argmax}{\operatorname*{arg\,max}}
+\providecommand{\argmin}{\operatorname*{arg\,min}}
+\providecommand{\vy}{\mathbf{y}}
+\providecommand{\vx}{\mathbf{x}}
+\providecommand{\mX}{\mathbf{X}}
+\providecommand{\mI}{\mathbf{I}}
+\providecommand{\vb}{\boldsymbol{\beta}}
+\providecommand{\veps}{\boldsymbol{\epsilon}}
+\providecommand{\vp}{\mathbf{p}}
+\providecommand{\vg}{\mathbf{g}}
+\providecommand{\ind}{\mathbf{1}}
+% new in this chapter
+\providecommand{\vh}{\mathbf{h}}
+\providecommand{\va}{\mathbf{a}}
+\providecommand{\vc}{\mathbf{c}}
+\providecommand{\vz}{\mathbf{z}}
+\providecommand{\vr}{\mathbf{r}}
+\providecommand{\vi}{\mathbf{i}}
+\providecommand{\vo}{\mathbf{o}}
+\providecommand{\vf}{\mathbf{f}}
+\providecommand{\vu}{\mathbf{u}}
+\providecommand{\vbias}{\mathbf{b}}
+\providecommand{\vone}{\mathbf{1}}
+\providecommand{\vphi}{\boldsymbol{\phi}}
+\providecommand{\vpi}{\boldsymbol{\pi}}
+\providecommand{\vtheta}{\boldsymbol{\theta}}
+\providecommand{\vdelta}{\boldsymbol{\delta}}
+\providecommand{\mW}{\mathbf{W}}
+\providecommand{\mJ}{\mathbf{J}}
+\providecommand{\mT}{\mathbf{T}}
+\providecommand{\diag}{\operatorname{diag}}
+
+\chapter{Recurrent neural networks and DNA methylation}
+\label{ch:rnn}
+
+Chapter 6 modelled a sequence of genomic bins with a hidden Markov model (HMM): a chain of discrete hidden states, each emitting an observation, with information passed along the chain by the forward-backward algorithm. Recurrent neural networks (RNNs) are the deep learning counterpart. An RNN also carries a hidden state along a sequence, but the state is a continuous vector, it is updated by a learned nonlinear function, and the whole model is trained end to end by gradient descent. This chapter introduces the basic or ``vanilla'' RNN, shows why it is hard to train on long sequences (the exploding and vanishing gradient problem), and describes the gated architectures that fix it, the gated recurrent unit (GRU) and long short-term memory (LSTM). We then cover bidirectional RNNs and the linear RNNs that underlie several recent DNA language models. The application is DNA methylation, a chemical modification of DNA itself, measured by bisulfite sequencing. We describe DeepCpG, a model that combines a convolutional network on DNA sequence with a bidirectional GRU to impute methylation states in single cells.
+
+%======================================================================
+\section{Recurrent neural networks}
+\label{sec:rnn}
+%======================================================================
+
+\subsection{The recurrence}
+
+Consider a sequence of inputs $\vx_1,\dots,\vx_S$ of length $S$, with $\vx_t\in\R^P$. For DNA, $\vx_t$ might be the one-hot encoding of the nucleotide at position $t$ ($P=4$); for the chromatin data of Chapter 6, it might be the vector of $P$ histone marks measured in bin $t$. An RNN maintains a \emph{hidden state} $\vh_t\in\R^K$, starting from an initial state $\vh_0$ (usually $\mathbf{0}$), and updates it one position at a time,
+\begin{equation}
+  \vh_t = f_{\mW}(\vh_{t-1},\vx_t), \qquad t=1,\dots,S,
+  \label{eq:rnn}
+\end{equation}
+where $f_{\mW}$ is a small neural network with parameters $\mW$ (Figure~\ref{fig:rnn_unrolled}). The hidden states play the same role as the hidden units of the multilayer perceptrons and CNNs of Chapter 2: they are intermediate quantities the network computes, not observed data. Semantically they resemble the latent states of an HMM, a summary of the sequence so far, except that here they are deterministic functions of the input. If we want predictions, a second network $g_{\vtheta}$ maps each hidden state to an output,
+\begin{equation}
+  \vy_t = g_{\vtheta}(\vh_t),
+  \label{eq:rnn_out}
+\end{equation}
+with $\vy_t\in\R^D$. For example, $g_{\vtheta}$ could be a softmax over $D$ classes, $\vy_t=\operatorname{softmax}(\mW_y\vh_t+\vbias_y)$ with $\mW_y\in\R^{D\times K}$ and $\vbias_y\in\R^D$.
+
+The word \emph{recurrent} refers to the fact that the same function $f_{\mW}$, with the same parameters, is applied at every position. An RNN is in effect a \texttt{for} loop along the sequence. Drawing one copy of $f_{\mW}$ per position, as in Figure~\ref{fig:rnn_unrolled}, is called \emph{unrolling} the network. The unrolled network is an ordinary deep network with $S$ layers that share their weights, and it is trained by backpropagation through this unrolled graph, which is called \emph{backpropagation through time}~\citep{werbos1990}. Weight sharing across positions is the same idea as in a convolutional layer, which applies the same filter at every position. The difference is that a convolution looks at a fixed window of the input, while the RNN hidden state can in principle carry information from arbitrarily far back.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      f/.style={draw, circle, minimum size=0.55cm, inner sep=0pt, fill=green!12},
+      lab/.style={inner sep=1pt}]
+    \node[lab] (h0) at (0,0) {$\vh_0$};
+    \foreach \i/\x in {1/1.6, 2/4.2, 3/6.8} {
+      \node[f] (f\i) at (\x,0) {$f$};
+      \node[lab] (x\i) at (\x,-1.3) {$\vx_{\i}$};
+      \node[lab] (h\i) at (\x+1.3,0) {$\vh_{\i}$};
+      \node[f, fill=blue!10] (g\i) at (\x+1.3,1.1) {$g$};
+      \node[lab] (y\i) at (\x+1.3,2.1) {$\vy_{\i}$};
+      \draw[->] (x\i) -- (f\i);
+      \draw[->] (f\i) -- (h\i);
+      \draw[->] (h\i) -- (g\i);
+      \draw[->] (g\i) -- (y\i);
+    }
+    \draw[->] (h0) -- (f1);
+    \draw[->] (h1) -- (f2);
+    \draw[->] (h2) -- (f3);
+    \node[lab] (dots) at (9.3,0) {$\cdots$};
+    \draw[->] (h3) -- (dots);
+    \node[f] (fS) at (10.4,0) {$f$};
+    \node[lab] (xS) at (10.4,-1.3) {$\vx_S$};
+    \node[lab] (hS) at (11.7,0) {$\vh_S$};
+    \draw[->] (dots) -- (fS); \draw[->] (xS) -- (fS); \draw[->] (fS) -- (hS);
+    \node[red!70!black, font=\footnotesize, align=center] at (2.9,2.65) {autoregressive:\\$\vy_1\approx\vx_2$};
+    \node[red!70!black, font=\footnotesize] at (5.5,2.5) {$\vy_2\approx\vx_3$};
+    \node[red!70!black, font=\footnotesize] at (8.1,2.5) {$\vy_3\approx\vx_4$};
+  \end{tikzpicture}
+  \caption{An RNN unrolled along a sequence. The same function $f$ (with parameters $\mW$) updates the hidden state from the previous state and the current input; the same function $g$ (with parameters $\vtheta$) maps each hidden state to an output. For autoregressive modelling, the output at position $t$ predicts the input at position $t+1$.}
+  \label{fig:rnn_unrolled}
+\end{figure}
+
+\subsection{Why recurrent networks?}
+
+Compared with the networks we have seen so far, RNNs have four attractive properties.
+\begin{enumerate}
+  \item \emph{Flexible input and output lengths.} A CNN followed by dense layers has dimensions that fix the input length. Sequences that are too short must be padded and sequences that are too long trimmed. An RNN runs for as many steps as the sequence has, and it can also generate an output sequence of any length, for example by emitting a stop token when it is done.
+  \item \emph{Long-range interactions.} Information in $\vx_1$ can flow through the hidden states to any later position, however long the sequence. A CNN can only relate positions within its receptive field, which grows with depth (Chapter 3). In practice, as we will see, a vanilla RNN finds it hard to retain information over long distances.
+  \item \emph{Complex ``grammar''.} Recall from Chapter 2 that regulatory sequences have a grammar: for example, two transcription factors may need to bind near each other, but not too near or too far. Theoretical and empirical work on formal languages suggests that, for a given depth, recurrent networks can represent some sequence rules that CNNs and transformers struggle with. A standard example is parity, deciding whether a binary sequence contains an odd or even number of ones, which an RNN solves by flipping a bit in its state at every one, but which transformers find hard to learn in a way that generalizes to longer sequences~\citep{deletang2023}.
+  \item \emph{Causality.} The hidden state $\vh_t$ depends only on $\vx_1,\dots,\vx_t$. This is exactly what is needed for \emph{autoregressive} modelling, predicting the next element from the previous ones, which is the basis of GPT-style language models. We can train the outputs to satisfy $\vy_t\approx\vx_{t+1}$ (Figure~\ref{fig:rnn_unrolled}) without any risk that the model ``cheats'' by seeing $\vx_{t+1}$, because $\vx_{t+1}$ does not influence $\vh_t$. A CNN or transformer needs explicit masking to achieve the same (Chapter 3).
+\end{enumerate}
+
+For autoregressive modelling of a DNA sequence, let $\vy_t\in\R^4$ be a softmax over the four nucleotides and $s_{t}\in\{1,\dots,4\}$ the nucleotide at position $t$. The chain rule of probability factorizes the probability of the whole sequence into next-nucleotide predictions,
+\begin{equation}
+  p(s_1,\dots,s_S) = p(s_1)\prod_{t=2}^{S}p(s_t\mid s_1,\dots,s_{t-1}),
+  \qquad p(s_{t+1}=d\mid s_1,\dots,s_t) = y_{td},
+\end{equation}
+and the negative log likelihood $-\sum_{t=1}^{S-1}\log y_{t,s_{t+1}}$ is a sum of cross-entropy losses, one per position. Because $\vh_t$ summarizes $s_1,\dots,s_t$, the RNN represents the full conditional $p(s_{t+1}\mid s_{1:t})$ rather than the first-order Markov dependence of Chapter 6.
+
+\subsection{Input and output configurations}
+
+The flexibility in sequence length allows several configurations (Figure~\ref{fig:configs}).
+\begin{itemize}
+  \item \emph{One to one}: no sequence dimension at all. This is an ordinary multilayer perceptron, such as the network of Chapter 2.
+  \item \emph{One to many}: generate a sequence from a single input. An example is generating protein sequences, or designing promoter or enhancer sequences that drive expression in a chosen cell type, which is of interest for gene therapy.
+  \item \emph{Many to one}: map a sequence to a single output, the setting of the CNNs of Chapters 2 and 3 for predicting transcription factor binding or chromatin accessibility. An RNN allows the input regions to have different lengths, where a CNN forces all peaks to a common width.
+  \item \emph{Many to many, different lengths}: encode an input sequence into a hidden state and then decode an output sequence of a different length. The classic example is machine translation~\citep{sutskever2014}, since a sentence need not have the same number of words in two languages.
+  \item \emph{Many to many, same length}: one output per input position. Chromatin state annotation, the ChromHMM task of Chapter 6, is an example, as is autoregressive next-token prediction.
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      inb/.style={draw, fill=red!15, minimum width=0.38cm, minimum height=0.5cm, inner sep=0pt},
+      hb/.style={draw, fill=green!15, minimum width=0.38cm, minimum height=0.5cm, inner sep=0pt},
+      ob/.style={draw, fill=blue!15, minimum width=0.38cm, minimum height=0.5cm, inner sep=0pt}]
+    % one to one
+    \begin{scope}[xshift=0cm]
+      \node[inb] (i) at (0,0) {}; \node[hb] (h) at (0,1) {}; \node[ob] (o) at (0,2) {};
+      \draw[->] (i) -- (h); \draw[->] (h) -- (o);
+      \node[align=center] at (0,-0.9) {one to one};
+    \end{scope}
+    % one to many
+    \begin{scope}[xshift=1.6cm]
+      \node[inb] (i) at (0,0) {};
+      \foreach \k in {0,1,2} { \node[hb] (h\k) at (0.6*\k,1) {}; \node[ob] (o\k) at (0.6*\k,2) {}; \draw[->] (h\k) -- (o\k); }
+      \draw[->] (i) -- (h0); \draw[->] (h0) -- (h1); \draw[->] (h1) -- (h2);
+      \node[align=center] at (0.6,-0.9) {one to many};
+    \end{scope}
+    % many to one
+    \begin{scope}[xshift=4.0cm]
+      \foreach \k in {0,1,2} { \node[inb] (i\k) at (0.6*\k,0) {}; \node[hb] (h\k) at (0.6*\k,1) {}; \draw[->] (i\k) -- (h\k); }
+      \node[ob] (o) at (1.2,2) {};
+      \draw[->] (h0) -- (h1); \draw[->] (h1) -- (h2); \draw[->] (h2) -- (o);
+      \node[align=center] at (0.6,-0.9) {many to one};
+    \end{scope}
+    % many to many, different lengths
+    \begin{scope}[xshift=6.4cm]
+      \foreach \k in {0,1,2} { \node[inb] (i\k) at (0.6*\k,0) {}; \draw[->] (i\k) -- ++(0,0.75); }
+      \foreach \k in {0,...,4} { \node[hb] (h\k) at (0.6*\k,1) {}; }
+      \foreach \k in {2,3,4} { \node[ob] (o\k) at (0.6*\k,2) {}; \draw[->] (h\k) -- (o\k); }
+      \foreach \k/\j in {0/1,1/2,2/3,3/4} \draw[->] (h\k) -- (h\j);
+      \node[align=center] at (1.2,-0.9) {many to many};
+    \end{scope}
+    % many to many, same length
+    \begin{scope}[xshift=10.0cm]
+      \foreach \k in {0,1,2} { \node[inb] (i\k) at (0.6*\k,0) {}; \node[hb] (h\k) at (0.6*\k,1) {}; \node[ob] (o\k) at (0.6*\k,2) {};
+        \draw[->] (i\k) -- (h\k); \draw[->] (h\k) -- (o\k); }
+      \draw[->] (h0) -- (h1); \draw[->] (h1) -- (h2);
+      \node[align=center] at (0.6,-0.9) {many to many};
+    \end{scope}
+    \node[font=\footnotesize, align=center] at (0,-1.6) {MLP};
+    \node[font=\footnotesize, align=center] at (2.2,-1.6) {sequence\\generation};
+    \node[font=\footnotesize, align=center] at (4.6,-1.6) {binding,\\accessibility};
+    \node[font=\footnotesize, align=center] at (7.6,-1.6) {translation};
+    \node[font=\footnotesize, align=center] at (10.6,-1.6) {chromatin\\annotation};
+  \end{tikzpicture}
+  \caption{Input and output configurations of RNNs. Red boxes are inputs, green boxes hidden states and blue boxes outputs; horizontal arrows are the recurrence. Below each configuration is an example application. After \citet{karpathy2015}.}
+  \label{fig:configs}
+\end{figure}
+
+%======================================================================
+\section{The vanilla RNN}
+\label{sec:vanilla}
+%======================================================================
+
+The simplest choice of $f_{\mW}$ in~\eqref{eq:rnn}, sometimes called the Elman network~\citep{elman1990}, is a single dense layer applied to the previous hidden state and the current input,
+\begin{equation}
+  \vh_t = \tanh\left(\mW_h\vh_{t-1} + \mW_x\vx_t + \vbias\right),
+  \label{eq:vanilla}
+\end{equation}
+where $\mW_h\in\R^{K\times K}$, $\mW_x\in\R^{K\times P}$ and $\vbias\in\R^K$, and $\tanh$ acts elementwise. Stacking the previous state and the input into one vector of length $K+P$ and the two weight matrices side by side, $\mW=[\mW_h\ \mW_x]\in\R^{K\times(K+P)}$, gives the equivalent form
+\begin{equation}
+  \vh_t = \tanh\left(\mW\begin{bmatrix}\vh_{t-1}\\\vx_t\end{bmatrix} + \vbias\right).
+\end{equation}
+So the vanilla RNN concatenates its two inputs, applies a linear map and a nonlinearity. It has $K(K+P+1)$ parameters regardless of the sequence length.
+
+The hyperbolic tangent, $\tanh(a)=(e^a-e^{-a})/(e^a+e^{-a})$, is the usual activation for recurrences (Figure~\ref{fig:tanh}). It is a rescaled logistic sigmoid, $\tanh(a)=2\sigma(2a)-1$, so it saturates at $\pm1$ rather than at 0 and 1. Its range is symmetric about zero, which suits a hidden state that is fed back into the next step, and bounding the state stops it from growing without limit along the sequence. Its derivative is
+\begin{equation}
+  \tanh'(a) = 1-\tanh(a)^2,
+  \label{eq:tanh_deriv}
+\end{equation}
+a bump with maximum $\tanh'(0)=1$ that decays to zero as $|a|$ grows. The derivative of the sigmoid has the same shape but a maximum of only $1/4$.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{tanh.pdf}
+  \caption{The $\tanh$ and logistic sigmoid functions (left) and their derivatives (right). The derivative of $\tanh$ is at most 1, attained at $a=0$, and decays to zero when the unit saturates.}
+  \label{fig:tanh}
+\end{figure}
+
+%======================================================================
+\section{Exploding and vanishing gradients}
+\label{sec:gradients}
+%======================================================================
+
+\subsection{Backpropagation through time}
+
+To train an RNN we need the gradient of the loss with respect to the shared weights. Suppose the loss is a sum over positions, $L=\sum_{t=1}^S\ell_t(\vy_t)$, for example the next-nucleotide cross-entropy above. Write the vanilla RNN~\eqref{eq:vanilla} in two steps, a pre-activation $\va_t=\mW_h\vh_{t-1}+\mW_x\vx_t+\vbias\in\R^K$ and $\vh_t=\tanh(\va_t)$. The \emph{Jacobian} of one step, the $K\times K$ matrix of partial derivatives $(\mJ_t)_{kj}=\partial h_{tk}/\partial h_{t-1,j}$, is
+\begin{equation}
+  \mJ_t = \frac{\partial\vh_t}{\partial\vh_{t-1}} = \diag\left(\vone-\vh_t\odot\vh_t\right)\mW_h ,
+  \label{eq:vanilla_jac}
+\end{equation}
+by~\eqref{eq:tanh_deriv} and the chain rule, where $\diag(\cdot)$ makes a diagonal matrix from a vector and $\odot$ is the elementwise product. Here we use the convention that a Jacobian has one row per output and one column per input, so that gradients, written as column vectors, are passed backward by the transposed Jacobian. This is the transpose of the gradient matrix of Chapter 2.
+
+Let $\vdelta_t=\nabla_{\vh_t}L\in\R^K$ be the gradient of the total loss with respect to the hidden state at position $t$. The state $\vh_t$ affects the loss directly, through $\ell_t$, and indirectly, through $\vh_{t+1}$ and therefore all later positions. The multivariate chain rule gives the backward recursion
+\begin{equation}
+  \vdelta_t = \nabla_{\vh_t}\ell_t + \mJ_{t+1}^\top\vdelta_{t+1}, \qquad \vdelta_S=\nabla_{\vh_S}\ell_S ,
+  \label{eq:bptt}
+\end{equation}
+which runs from $t=S$ down to $t=1$, the RNN analogue of the backward pass of Chapter 2. Unrolling it, the contribution of the loss at a later position $S$ to the gradient at position $t$ is
+\begin{equation}
+  \nabla_{\vh_t}\ell_S = \left(\frac{\partial\vh_S}{\partial\vh_t}\right)^\top\nabla_{\vh_S}\ell_S,
+  \qquad
+  \frac{\partial\vh_S}{\partial\vh_t} = \mJ_S\mJ_{S-1}\cdots\mJ_{t+1} = \prod_{r=t+1}^{S}\diag\left(\vone-\vh_r\odot\vh_r\right)\mW_h ,
+  \label{eq:jac_product}
+\end{equation}
+a product of $S-t$ Jacobians, with later positions on the left. Finally, since $\mW_h$ enters every step, its gradient sums over positions,
+\begin{equation}
+  \nabla_{\mW_h}L = \sum_{t=1}^{S}\left(\vdelta_t\odot(\vone-\vh_t\odot\vh_t)\right)\vh_{t-1}^\top \in\R^{K\times K},
+\end{equation}
+and similarly for $\mW_x$ (with $\vx_t^\top$ in place of $\vh_{t-1}^\top$) and $\vbias$. Each term is the outer product of the error signal arriving at the pre-activation $\va_t$ and the input to that step, as in Chapter 2. Whether the model can learn that $\vx_t$ matters for a loss many positions later depends on the product~\eqref{eq:jac_product}.
+
+\subsection{The scalar case}
+
+The problem is clearest with a scalar hidden state, $K=1$, where $\mW_h=w$ is a number. Then~\eqref{eq:jac_product} becomes
+\begin{equation}
+  \frac{\partial h_S}{\partial h_t} = w^{S-t}\prod_{r=t+1}^{S}\tanh'(a_r) .
+\end{equation}
+Each factor $\tanh'(a_r)$ is at most 1, and close to 1 only when the unit is far from saturation. The factor $w^{S-t}$ goes to zero exponentially fast if $|w|<1$ and blows up exponentially if $|w|>1$. For a sequence of length 100 or 1000 this means the gradient from distant positions either vanishes, so the model cannot learn long-range dependencies, or explodes, so that gradient descent takes enormous, unstable steps. Only $|w|=1$ avoids both, and even then the $\tanh'$ factors shrink the product whenever the unit is not near zero.
+
+\subsection{The matrix case}
+
+For $K>1$ the role of $|w|$ is played by the singular values of $\mW_h$. Let $\|\cdot\|$ be the spectral norm, the largest singular value $\sigma_{\max}(\cdot)$. Since the norm of a product is at most the product of norms and $\|\diag(\vone-\vh_r\odot\vh_r)\|\leq1$,
+\begin{equation}
+  \left\|\frac{\partial\vh_S}{\partial\vh_t}\right\| \leq \prod_{r=t+1}^S\left\|\diag(\vone-\vh_r\odot\vh_r)\right\|\,\|\mW_h\| \leq \sigma_{\max}(\mW_h)^{S-t}.
+\end{equation}
+If $\sigma_{\max}(\mW_h)<1$ the gradient is guaranteed to vanish exponentially with distance. If $\sigma_{\max}(\mW_h)>1$ the bound allows growth, and for large enough singular values the gradient does explode~\citep{bengio1994,pascanu2013}. Figure~\ref{fig:gradient_flow} (left) shows this numerically for a vanilla RNN with $K=50$ hidden units, random inputs and a weight matrix $\mW_h$ whose singular values all equal a common value. With singular values of 0.9 the gradient shrinks by more than 20 orders of magnitude over 100 steps; with 1.5 it still shrinks, because saturated units have small $\tanh'$; with 3 it grows by more than 10 orders of magnitude.
+
+The underlying cause is that backpropagation multiplies by the same matrix $\mW_h$ at every step. Forcing $\mW_h$ to have all singular values equal to 1 (an orthogonal matrix) removes the exponential factor but constrains the model heavily, and the $\tanh'$ factors still shrink the gradient. Exploding gradients have a simple practical remedy, \emph{gradient clipping}, which rescales the gradient $\vg$ to $c\,\vg/\|\vg\|$ whenever its norm exceeds a threshold $c$~\citep{pascanu2013}. Vanishing gradients need a change of architecture, which is the subject of the next section.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{gradient_flow.pdf}
+  \caption{Norm of the Jacobian $\partial\vh_S/\partial\vh_{S-k}$, which scales the gradient that the loss at position $S$ sends back to position $S-k$, for simulated networks with $K=50$ hidden units and random inputs. Left, vanilla RNN with all singular values of $\mW_h$ equal to $\sigma(\mW_h)$: the gradient vanishes exponentially for $\sigma=0.9$, decays more slowly for $\sigma=1.5$, where saturation of $\tanh$ offsets the growth, and explodes for $\sigma=3$. Right, GRU with update-gate bias $b_z$: when the gate is mostly closed ($b_z=-3$ or $-6$, so $z\approx0.05$ or $0.002$) the gradient is preserved over 100 steps.}
+  \label{fig:gradient_flow}
+\end{figure}
+
+%======================================================================
+\section{Gated recurrent networks}
+\label{sec:gated}
+%======================================================================
+
+The vanilla RNN fails because the backward pass multiplies by the same matrix at every step. Gated architectures fix this by making the step-to-step dependence \emph{data-adaptive}: a learned gate, computed from the current input and state, decides at each position how much of the old state to keep and how much new information to write. Where the gate keeps the old state, the state, and its gradient, pass through nearly unchanged. Historically the long short-term memory (LSTM)~\citep{hochreiter1997} came first and the gated recurrent unit (GRU)~\citep{cho2014} later, as a simplification that performs about as well in practice~\citep{chung2014,jozefowicz2015}. We present the GRU first because it is simpler.
+
+\subsection{Gates}
+
+A \emph{gate} is a vector of numbers between 0 and 1, computed by a logistic sigmoid $\sigma(a)=1/(1+e^{-a})$ applied to a linear function of the current input and the previous state. Let
+\begin{equation}
+  \vphi_t = \begin{bmatrix}\vx_t\\\vh_{t-1}\end{bmatrix}\in\R^{P+K}
+\end{equation}
+be their concatenation. Every gate below has the form $\sigma(\mW_\bullet\vphi_t+\vbias_\bullet)\in(0,1)^K$, with its own weights $\mW_\bullet\in\R^{K\times(P+K)}$ and bias $\vbias_\bullet\in\R^K$. A gate is applied by elementwise multiplication, so each of the $K$ hidden units has its own gate value at each position. A gate value near 0 blocks a signal and a value near 1 lets it through.
+
+\subsection{The gated recurrent unit}
+
+The GRU computes two gates and a candidate state,
+\begin{align}
+  \vz_t &= \sigma\left(\mW_z\vphi_t+\vbias_z\right) && \text{(update gate)},\\
+  \vr_t &= \sigma\left(\mW_r\vphi_t+\vbias_r\right) && \text{(reset gate)},\\
+  \vg_t &= \tanh\left(\mW_x\vx_t + \vr_t\odot(\mW_h\vh_{t-1}) + \vbias_g\right) && \text{(candidate state)},
+\end{align}
+with $\mW_x\in\R^{K\times P}$ and $\mW_h\in\R^{K\times K}$ as in the vanilla RNN, and then sets the new state to an elementwise convex combination of the candidate and the old state,
+\begin{equation}
+  \vh_t = \vz_t\odot\vg_t + (\vone-\vz_t)\odot\vh_{t-1} .
+  \label{eq:gru}
+\end{equation}
+Figure~\ref{fig:gru} shows the computation. The update gate $\vz_t$ acts as a forgetting factor. Where $z_{tk}\approx1$, unit $k$ discards its old value and takes in new information from $\vg_t$; where $z_{tk}\approx0$, it ignores the input and copies its previous value. The candidate $\vg_t$ is a vanilla RNN step~\eqref{eq:vanilla}, except that the reset gate $\vr_t$ controls how much of the previous state is used when processing the new input. In this sense gating resembles attention (Chapter 3): the model learns, from the data, which information to take into account at each position.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      gate/.style={draw, fill=yellow!35, minimum width=0.7cm, minimum height=0.5cm, inner sep=1pt},
+      op/.style={draw, circle, fill=red!12, minimum size=0.48cm, inner sep=0pt, font=\footnotesize}]
+    \draw[rounded corners=8pt, fill=green!8, draw=green!40!black] (0,0) rectangle (6.4,4.0);
+    % state line
+    \node (hin) at (-0.9,3.3) {$\vh_{t-1}$};
+    \node[op] (m1) at (2.6,3.3) {$\times$};
+    \node[op] (add) at (4.6,3.3) {$+$};
+    \node (hout) at (7.3,3.3) {$\vh_t$};
+    \draw[->, thick] (hin) -- (m1); \draw[->, thick] (m1) -- (add); \draw[->, thick] (add) -- (hout);
+    \draw[->, thick] (5.8,3.3) -- (5.8,4.7) node[above] {$\vh_t$};
+    % input line
+    \node (x) at (0.9,-0.9) {$\vx_t$};
+    \draw[thick] (0.4,3.3) -- (0.4,0.4) -- (4.6,0.4);
+    \draw[thick] (x) -- (0.9,0.4);
+    \node[gate] (sz) at (1.8,1.0) {$\sigma$};
+    \node[gate] (sr) at (3.2,1.0) {$\sigma$};
+    \node[gate] (tg) at (4.6,1.0) {tanh};
+    \foreach \g/\xx in {sz/1.8, sr/3.2, tg/4.6} \draw[->] (\xx,0.4) -- (\g);
+    % reset gate into candidate
+    \draw[->] (sr) -- node[above, font=\footnotesize] {$\vr_t$} (tg);
+    % update gate
+    \node[op] (m2) at (4.6,2.1) {$\times$};
+    \node[op] (oneminus) at (2.6,2.6) {\scriptsize $1-$};
+    \draw[->] (sz) -- (1.8,2.1) -- (m2);
+    \node[font=\footnotesize] at (1.55,1.75) {$\vz_t$};
+    \draw[->] (2.6,2.1) -- (oneminus); \draw[->] (oneminus) -- (m1);
+    \draw[->] (tg) -- node[right, font=\footnotesize] {$\vg_t$} (m2);
+    \draw[->] (m2) -- (add);
+    \fill (0.4,3.3) circle (1.5pt); \fill (0.9,0.4) circle (1.5pt); \fill (2.6,2.1) circle (1.5pt); \fill (5.8,3.3) circle (1.5pt);
+  \end{tikzpicture}
+  \caption{The gated recurrent unit. Yellow boxes are learned layers, each taking the concatenation of $\vx_t$ and $\vh_{t-1}$; red circles are elementwise operations. The update gate $\vz_t$ mixes the candidate $\vg_t$ with the previous state; the reset gate $\vr_t$ scales the contribution of the previous state to the candidate. Redrawn after \citet{olah2015}.}
+  \label{fig:gru}
+\end{figure}
+
+Two variants of the candidate are in use. The original GRU~\citep{cho2014} applies the reset gate before the matrix multiplication, $\vg_t=\tanh(\mW_x\vx_t+\mW_h(\vr_t\odot\vh_{t-1})+\vbias_g)$, while the form above, with the gate applied after the multiplication, is the one implemented in common GPU libraries such as cuDNN and PyTorch. Conventions also differ on whether $\vz_t$ or $\vone-\vz_t$ multiplies the old state. None of these choices changes the idea. The reset gate is arguably the least essential component: simplified gated units that drop it perform comparably on many tasks~\citep{feng2024}, a point we return to in Section~\ref{sec:linear}.
+
+\subsection{Why gating fixes the gradient}
+
+Differentiate~\eqref{eq:gru} with respect to $\vh_{t-1}$. The state enters directly, through $(\vone-\vz_t)\odot\vh_{t-1}$, and indirectly, through $\vz_t$ and $\vg_t$. Write $\mW_{z,h}\in\R^{K\times K}$ for the block of $\mW_z$ that multiplies $\vh_{t-1}$, and similarly $\mW_{r,h}$, and $\vu_t=\mW_h\vh_{t-1}$. By the product rule,
+\begin{equation}
+  \mJ_t = \frac{\partial\vh_t}{\partial\vh_{t-1}}
+  = \underbrace{\diag(\vone-\vz_t)}_{\text{direct path}}
+  + \diag(\vg_t-\vh_{t-1})\frac{\partial\vz_t}{\partial\vh_{t-1}}
+  + \diag(\vz_t)\frac{\partial\vg_t}{\partial\vh_{t-1}},
+  \label{eq:gru_jac}
+\end{equation}
+where
+\begin{align}
+  \frac{\partial\vz_t}{\partial\vh_{t-1}} &= \diag\left(\vz_t\odot(\vone-\vz_t)\right)\mW_{z,h},\\
+  \frac{\partial\vg_t}{\partial\vh_{t-1}} &= \diag\left(\vone-\vg_t\odot\vg_t\right)\left[\diag(\vr_t)\mW_h + \diag(\vu_t)\diag\left(\vr_t\odot(\vone-\vr_t)\right)\mW_{r,h}\right],
+\end{align}
+using $\sigma'(a)=\sigma(a)(1-\sigma(a))$. Consider a unit whose update gate is nearly closed, $z_{tk}\approx0$. Then both $z_{tk}(1-z_{tk})$ and $z_{tk}$ are close to zero, so the second and third terms of row $k$ of~\eqref{eq:gru_jac} vanish, and the row is close to the corresponding row of the identity. The direct path contributes
+\begin{equation}
+  (\vone-\vz_t)\odot\nabla_{\vh_t}L
+\end{equation}
+to the gradient $\nabla_{\vh_{t-1}}L$. This is an elementwise product with a gate that differs at every position, not a repeated multiplication by the same matrix. Over many positions the product of the factors $1-z_{tk}$ stays close to 1 for as long as the unit keeps its memory, so neither vanishing nor explosion occurs along this path. Where the unit does take in new input, the gradient is deliberately cut, since the old state no longer matters.
+
+Figure~\ref{fig:gradient_flow} (right) illustrates this with a GRU of the same size, with random weights and the bias of the update gate set to $b_z$ for all units. With $b_z=0$ the gates are around $1/2$, each step roughly halves the direct path, and the gradient vanishes much as in the vanilla RNN. With $b_z=-3$ or $-6$ the gates are mostly closed and the gradient is preserved over 100 positions. A trained GRU learns gate values that are small where information must be carried and large where it should be overwritten.
+
+\subsection{Long short-term memory}
+
+The LSTM~\citep{hochreiter1997,gers2000} separates two roles that the GRU state plays. Besides the hidden state $\vh_t\in\R^K$, which is the output at each position and acts as short-term memory, it carries a \emph{cell state} $\vc_t\in\R^K$ intended as long-term memory (the name has nothing to do with biological cells). With $\vphi_t$ again the concatenation of $\vx_t$ and $\vh_{t-1}$, the LSTM computes three gates and a candidate,
+\begin{align}
+  \vi_t &= \sigma\left(\mW_i\vphi_t+\vbias_i\right) && \text{(input gate)},\\
+  \vf_t &= \sigma\left(\mW_f\vphi_t+\vbias_f\right) && \text{(forget gate)},\\
+  \vo_t &= \sigma\left(\mW_o\vphi_t+\vbias_o\right) && \text{(output gate)},\\
+  \vg_t &= \tanh\left(\mW_g\vphi_t+\vbias_g\right) && \text{(candidate)},
+\end{align}
+and updates the two states as
+\begin{equation}
+  \vc_t = \vf_t\odot\vc_{t-1} + \vi_t\odot\vg_t, \qquad \vh_t = \vo_t\odot\tanh(\vc_t).
+  \label{eq:lstm}
+\end{equation}
+Figure~\ref{fig:lstm} shows the computation. The forget gate decides how much of the old cell state to keep, the input gate how much of the candidate to write, and the output gate how much of the cell state to expose as $\vh_t$. Note that the forget gate of the LSTM is a ``keep'' gate, $f_{tk}\approx1$ retaining the memory, the opposite convention to the GRU's $\vz_t$.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      gate/.style={draw, fill=yellow!35, minimum width=0.7cm, minimum height=0.5cm, inner sep=1pt},
+      op/.style={draw, circle, fill=red!12, minimum size=0.48cm, inner sep=0pt, font=\footnotesize}]
+    \draw[rounded corners=8pt, fill=green!8, draw=green!40!black] (0,0) rectangle (7.2,4.0);
+    % cell line
+    \node (cin) at (-0.9,3.3) {$\vc_{t-1}$};
+    \node[op] (mf) at (1.5,3.3) {$\times$};
+    \node[op] (add) at (3.35,3.3) {$+$};
+    \node (cout) at (8.1,3.3) {$\vc_t$};
+    \draw[->, thick] (cin) -- (mf); \draw[->, thick] (mf) -- (add); \draw[->, thick] (add) -- (cout);
+    % hidden/input line
+    \node (hin) at (-0.9,0.4) {$\vh_{t-1}$};
+    \node (x) at (0.6,-0.9) {$\vx_t$};
+    \draw[thick] (hin) -- (5.2,0.4);
+    \draw[thick] (x) -- (0.6,0.4);
+    \node[gate] (sf) at (1.5,1.0) {$\sigma$};
+    \node[gate] (si) at (2.8,1.0) {$\sigma$};
+    \node[gate] (tg) at (3.9,1.0) {tanh};
+    \node[gate] (so) at (5.2,1.0) {$\sigma$};
+    \foreach \g/\xx in {sf/1.5, si/2.8, tg/3.9, so/5.2} \draw[->] (\xx,0.4) -- (\g);
+    \draw[->] (sf) -- node[left, font=\footnotesize] {$\vf_t$} (mf);
+    \node[op] (mi) at (3.35,2.2) {$\times$};
+    \draw[->] (si) -- (2.8,2.2) node[left, font=\footnotesize] {$\vi_t$} -- (mi);
+    \draw[->] (tg) -- (3.9,2.2) node[right, font=\footnotesize] {$\vg_t$} -- (mi);
+    \draw[->] (mi) -- (add);
+    % output
+    \node[op, minimum size=0.6cm] (tc) at (6.2,2.55) {\scriptsize tanh};
+    \node[op] (mo) at (6.2,1.6) {$\times$};
+    \draw[->] (6.2,3.3) -- (tc); \draw[->] (tc) -- (mo);
+    \draw[->] (so) -- (5.2,1.6) node[above, font=\footnotesize] {$\vo_t$} -- (mo);
+    \draw[thick] (mo) -- (6.2,0.4);
+    \node (hout) at (8.1,0.4) {$\vh_t$};
+    \draw[->, thick] (6.2,0.4) -- (hout);
+    \draw[->, thick] (6.75,0.4) -- (6.75,4.7) node[above] {$\vh_t$};
+    \fill (0.6,0.4) circle (1.5pt); \fill (6.2,3.3) circle (1.5pt); \fill (6.75,0.4) circle (1.5pt);
+  \end{tikzpicture}
+  \caption{Long short-term memory. The cell state $\vc_t$ (top line) is modified only by elementwise multiplication with the forget gate and addition of the gated candidate; the hidden state $\vh_t$ (bottom line) is a gated, squashed copy of the cell state. Redrawn after \citet{olah2015}.}
+  \label{fig:lstm}
+\end{figure}
+
+The gradient along the cell state is governed by the same mechanism as in the GRU. Holding the gates fixed, $\partial\vc_t/\partial\vc_{t-1}=\diag(\vf_t)$, so the gradient passed back along the cell line is multiplied elementwise by forget gates that vary with position. In the original LSTM there was no forget gate, equivalent to $\vf_t=\vone$, so that this Jacobian was exactly the identity, an error signal that is carried unchanged; the forget gate was added later so that the network could also learn to reset its memory~\citep{gers2000}. A common practical recommendation is to initialize $\vbias_f$ to a positive value, such as 1, so that the cell remembers by default early in training~\citep{jozefowicz2015}. The hidden state $\vh_t$ depends on $\vh_{t-1}$ only through the gates and the candidate, which feed the cell state, so long-range information travels along the cell line.
+
+\subsection{GRU or LSTM?}
+
+The GRU can be seen as an LSTM with two simplifications. It ties the input and forget gates, setting $\vi_t=\vz_t$ and $\vf_t=\vone-\vz_t$, so that remembering more means writing less and vice versa, and it merges the cell and hidden states. Table~\ref{tab:rnn_params} compares the parameter counts. In large empirical comparisons the two perform similarly, with the best choice depending on the task~\citep{chung2014,jozefowicz2015}. The details of these architectures can feel arbitrary, and the important idea is the gate, a learned, data-dependent control of information flow. The same idea appears elsewhere, for example in gated convolutional networks, where the output of a convolution is multiplied elementwise by a sigmoid gate computed by a second convolution~\citep{dauphin2017}.
+
+\begin{table}[t]
+  \centering
+  \caption{Recurrent units with input dimension $P$ and hidden dimension $K$. Each learned layer has a $K\times(K+P)$ weight matrix and a bias of length $K$.}
+  \label{tab:rnn_params}
+  \begin{tabular}{llll}
+    \toprule
+    Unit & State & Learned layers & Parameters \\
+    \midrule
+    Vanilla RNN & $\vh_t$ & 1 ($\tanh$) & $K(K+P+1)$ \\
+    GRU & $\vh_t$ & 3 (2 gates, candidate) & $3K(K+P+1)$ \\
+    LSTM & $\vh_t$, $\vc_t$ & 4 (3 gates, candidate) & $4K(K+P+1)$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%======================================================================
+\section{Bidirectional and deep RNNs}
+\label{sec:bidir}
+%======================================================================
+
+Causality is an advantage for autoregressive modelling but a limitation when we want the prediction at a position to use the sequence on both sides of it, as for chromatin annotation, where the state of a bin depends on its neighbours in both directions. A \emph{bidirectional RNN}~\citep{schuster1997} runs one RNN forwards and a second RNN backwards along the sequence (Figure~\ref{fig:bidir}),
+\begin{equation}
+  \overrightarrow{\vh}_t = f_{\overrightarrow{\mW}}(\overrightarrow{\vh}_{t-1},\vx_t), \qquad
+  \overleftarrow{\vh}_t = f_{\overleftarrow{\mW}}(\overleftarrow{\vh}_{t+1},\vx_t),
+\end{equation}
+so that $\overrightarrow{\vh}_t\in\R^K$ summarizes $\vx_1,\dots,\vx_t$ and $\overleftarrow{\vh}_t\in\R^K$ summarizes $\vx_t,\dots,\vx_S$. For a prediction at every position, the two states are concatenated (or added) and passed to the output layer, $\vy_t=g_{\vtheta}([\overrightarrow{\vh}_t;\overleftarrow{\vh}_t])$; concatenation and addition tend to perform similarly. For a single prediction from the whole sequence, a common choice is to concatenate the final state of each direction, $[\overrightarrow{\vh}_S;\overleftarrow{\vh}_1]\in\R^{2K}$, each of which has seen the entire sequence, and pass it through further dense layers. The two directions usually have separate parameters, but they can be shared.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      fw/.style={draw, fill=green!15, minimum width=0.7cm, minimum height=0.55cm},
+      bw/.style={draw, fill=green!35, minimum width=0.7cm, minimum height=0.55cm},
+      io/.style={draw, circle, minimum size=0.65cm, inner sep=0pt}]
+    \foreach \i/\x in {1/0, 2/2.2, 3/4.4, S/7.4} {
+      \node[io, fill=red!12] (x\i) at (\x,0) {$\vx_{\i}$};
+      \node[fw] (f\i) at (\x+0.45,1.2) {$f$};
+      \node[bw] (b\i) at (\x-0.45,2.2) {$f'$};
+      \node[io, fill=blue!12] (y\i) at (\x,3.4) {$\vy_{\i}$};
+      \draw[->] (x\i) -- (f\i); \draw[->] (x\i.north west) -- (b\i);
+      \draw[->] (f\i) -- (y\i); \draw[->] (b\i) -- (y\i);
+    }
+    \node (dots) at (5.9,0) {$\cdots$};
+    \node (h0) at (-1.3,1.2) {$\overrightarrow{\vh}_0$};
+    \draw[->] (h0) -- (f1); \draw[->] (f1) -- (f2); \draw[->] (f2) -- (f3); \draw[->, dashed] (f3) -- (fS);
+    \node (hS) at (8.9,1.2) {$\overrightarrow{\vh}_S$}; \draw[->] (fS) -- (hS);
+    \node (b0) at (8.9,2.2) {$\overleftarrow{\vh}_{S+1}$};
+    \draw[->] (b0) -- (bS); \draw[->, dashed] (bS) -- (b3); \draw[->] (b3) -- (b2); \draw[->] (b2) -- (b1);
+    \node (b1out) at (-1.6,2.2) {$\overleftarrow{\vh}_1$}; \draw[->] (b1) -- (b1out);
+  \end{tikzpicture}
+  \caption{A bidirectional RNN. A forward RNN ($f$, light green) and a backward RNN ($f'$, dark green) each process the whole sequence; the output at each position combines the two states, and so depends on the inputs on both sides. For a single sequence-level prediction, the final states $\protect\overrightarrow{\vh}_S$ and $\protect\overleftarrow{\vh}_1$ are concatenated. After \citet{olah2015types}.}
+  \label{fig:bidir}
+\end{figure}
+
+RNN layers can also be stacked: the sequence of hidden states of one layer, $\vh^{(1)}_1,\dots,\vh^{(1)}_S$, becomes the input sequence of the next. As in other deep networks, stacking lets higher layers build more abstract representations, and it is one way to increase capacity without increasing $K$.
+
+%======================================================================
+\section{Linear RNNs}
+\label{sec:linear}
+%======================================================================
+
+\subsection{The parallelization problem}
+
+RNNs went out of fashion for several years after transformers appeared (Chapter 3), largely for computational reasons. Computing $\vh_t$ requires $\vh_{t-1}$, so a layer cannot be evaluated at all positions at once; the forward and backward passes are \texttt{for} loops of length $S$. This makes poor use of GPUs, which are fast because they process many positions in parallel. A transformer layer computes all positions simultaneously during training, but at a cost quadratic in $S$. For DNA language models that aim to read hundreds of thousands to a million nucleotides at single-base resolution, neither a sequential loop of a million steps nor a quadratic attention matrix is attractive. \emph{Linear RNNs} offer a way out, and they are the basis of several recent DNA language models.
+
+\subsection{Linear recurrences can be parallelized}
+
+In a linear RNN the new state is a linear function of the old state, with coefficients that may depend on the input but not on the state,
+\begin{equation}
+  \vh_t = \va_t\odot\vh_{t-1} + \vbias_t ,
+  \label{eq:linear_rnn}
+\end{equation}
+where $\va_t\in\R^K$ and $\vbias_t\in\R^K$ are (possibly nonlinear) functions of $\vx_t$ alone. Unrolling from $\vh_0=\mathbf{0}$,
+\begin{equation}
+  \vh_t = \sum_{s=1}^t\left(\prod_{r=s+1}^t\va_r\right)\odot\vbias_s ,
+  \label{eq:linear_unrolled}
+\end{equation}
+with products taken elementwise and the empty product equal to $\vone$. Each step of~\eqref{eq:linear_rnn} is an affine map $\vh\mapsto\va_t\odot\vh+\vbias_t$, which we represent by the pair $(\va_t,\vbias_t)$. Applying $(\va,\vbias)$ and then $(\va',\vbias')$ gives $\vh\mapsto\va'\odot(\va\odot\vh+\vbias)+\vbias' = (\va'\odot\va)\odot\vh + (\va'\odot\vbias+\vbias')$, so composition is the operation
+\begin{equation}
+  (\va,\vbias)\bullet(\va',\vbias') = \left(\va\odot\va',\ \va'\odot\vbias+\vbias'\right).
+\end{equation}
+Composition of functions is associative, so $\bullet$ is associative, and $\vh_t$ is the second component of $(\va_1,\vbias_1)\bullet\cdots\bullet(\va_t,\vbias_t)$. Computing all such prefix products is a \emph{prefix scan}, which can be done with $O(S)$ total work in $O(\log S)$ parallel steps, for example by combining adjacent pairs, then adjacent pairs of pairs, and so on~\citep{blelloch1990,martin2018}. The nonlinear RNNs of the previous sections do not have this property, because $\va_t$ and $\vbias_t$ would depend on $\vh_{t-1}$.
+
+When the coefficient $\va_t=\va$ is the same at every position and $\vbias_t=\mathbf{B}\vx_t$ is a linear function of the input, with $\mathbf{B}\in\R^{K\times P}$, \eqref{eq:linear_unrolled} becomes $\vh_t=\sum_{k=0}^{t-1}\va^k\odot\mathbf{B}\vx_{t-k}$, a convolution of the input with a long, exponentially decaying filter. This connects linear RNNs to the long convolutions of structured state space models~\citep{gu2022} and the Hyena operator~\citep{poli2023}: the same model can be trained as a parallel convolution or scan and run at inference time as a recurrence, with constant memory per step.
+
+The gradient of a linear RNN is also well behaved. From~\eqref{eq:linear_rnn}, $\partial\vh_t/\partial\vh_{t-1}=\diag(\va_t)$, the direct path of the GRU and LSTM without the other terms. If the entries of $\va_t$ are kept in $(0,1)$, for example by a sigmoid, the gradient cannot explode, and it is preserved wherever $\va_t$ is close to 1.
+
+\subsection{A minimal GRU}
+
+Removing the dependence of the GRU's gates and candidate on $\vh_{t-1}$ gives a linear RNN. The minimal GRU~\citep{feng2024} uses
+\begin{equation}
+  \vz_t = \sigma(\mW_z\vx_t+\vbias_z), \qquad \tilde\vg_t = \mW_g\vx_t+\vbias_g, \qquad
+  \vh_t = (\vone-\vz_t)\odot\vh_{t-1} + \vz_t\odot\tilde\vg_t ,
+\end{equation}
+which is~\eqref{eq:linear_rnn} with $\va_t=\vone-\vz_t$ and $\vbias_t=\vz_t\odot\tilde\vg_t$. A single such layer is less expressive than a GRU, since the state cannot influence what is written into it. Stacking layers, with nonlinear dense layers in between, restores much of the expressiveness while keeping every layer parallelizable. The trade-off is captured by the slogan ``not quite as expressive, but fully parallelizable''.
+
+\subsection{Linear RNNs for DNA}
+
+Several recent sequence models build on this idea. Mamba~\citep{gu2023} is a selective state space model: a linear recurrence whose coefficients depend on the input, so that, like a gate, the model can choose at each position what to remember and what to ignore, implemented with a hardware-aware parallel scan. HyenaDNA~\citep{nguyen2023} uses the Hyena operator, which interleaves implicitly parameterized long convolutions with elementwise gating, to model up to a million nucleotides at single-nucleotide resolution. Caduceus~\citep{schiff2024} extends Mamba blocks to be bidirectional and equivariant to reverse complementation, so that a sequence and its reverse complement, the same DNA read from the other strand, receive consistent representations. Evo~\citep{nguyen2024} uses a hybrid architecture that interleaves Hyena layers with attention layers; similar hybrids of linear recurrences and attention are used in general-purpose language models such as RecurrentGemma~\citep{botev2024}. Hybrids aim to combine the efficiency of linear recurrences on very long sequences with the accuracy of attention.
+
+Figure~\ref{fig:mamba_scaling} compares these architectures as DNA language models, trained to predict the next nucleotide on the human reference genome. Performance is measured by \emph{perplexity}, the exponential of the average per-nucleotide cross-entropy, $\exp\left(-\frac{1}{S}\sum_t\log p(s_t\mid s_{1:t-1})\right)$. A model that guesses uniformly among the four nucleotides has perplexity 4, and a perfect model has perplexity 1. All three architectures improve with size, with Mamba the best at each size in this comparison. That even the largest models remain well above 2 shows how hard it is to predict the next nucleotide of the genome. Whether DNA language models trained this way learn biology that is useful for downstream tasks is still an open question.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.65\linewidth]{slides/mamba_dna_scaling.png}
+  \caption{Next-nucleotide perplexity on the human genome (HG38) against model size for a transformer (Transformer++), HyenaDNA and Mamba. Lower is better. Reproduced from \citet{gu2023}.}
+  \label{fig:mamba_scaling}
+\end{figure}
+
+%======================================================================
+\section{DNA methylation}
+\label{sec:methylation}
+%======================================================================
+
+\subsection{Methylated cytosine}
+
+Chapter 3 introduced histone modifications, chemical groups such as methyl or acetyl groups attached to the tails of the histone proteins around which DNA is wrapped; H3K27me3, for example, is three methyl groups on lysine 27 of histone H3. \emph{DNA methylation} is a modification of the DNA itself. In mammals, and most other vertebrates, it is the addition of a methyl group to carbon 5 of a cytosine, giving 5-methylcytosine (5mC; Figure~\ref{fig:methyl_cycle}), almost always at a cytosine followed by a guanine. Such a dinucleotide is written CpG, where the ``p'' denotes the phosphate linking the two nucleotides along one strand and distinguishes it from a C--G base pair across the two strands. CpG is its own reverse complement, so a CpG on one strand faces a CpG on the other, and methylation is usually symmetric: both cytosines are methylated, or neither is. In somatic human cells around 70--80\% of CpGs are methylated~\citep{jones2012}.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small},
+      atom/.style={fill=white, inner sep=0.5pt, font=\footnotesize},
+      enz/.style={draw, rounded corners=6pt, inner sep=3pt, font=\footnotesize}]
+    \tikzset{ring/.pic={
+      \foreach \a/\b in {90/30, 30/-30, -30/-90, -90/-150, -150/150, 150/90} \draw (\a:0.6) -- (\b:0.6);
+      \draw ($(90:0.6)!0.18!(30:0.6)+(-0.07,-0.1)$) -- ($(90:0.6)!0.82!(30:0.6)+(-0.07,-0.1)$);
+      \draw ($(-150:0.6)+(0.12,0.05)$) -- ($(150:0.6)+(0.12,-0.05)$);
+      \node[atom] at (30:0.6) {N};
+      \node[atom] at (-90:0.6) {N};
+      \draw (90:0.6) -- (90:1.05) node[above, inner sep=1pt, font=\footnotesize] {NH$_2$};
+      \draw ($(-30:0.6)+(0.02,0.04)$) -- ($(-30:1.05)+(0.02,0.04)$);
+      \draw ($(-30:0.6)+(-0.02,-0.04)$) -- ($(-30:1.05)+(-0.02,-0.04)$);
+      \node[right, inner sep=1pt, font=\footnotesize] at (-30:1.05) {O};
+      \draw (-90:0.75) -- (-90:1.15) node[below, inner sep=1pt, font=\footnotesize] {DNA};
+    }}
+    \pic at (0,0) {ring};
+    \node at (0,-1.95) {cytosine};
+    \pic at (7,0) {ring};
+    \draw[red!70!black, thick] (7,0) ++(150:0.6) -- ++(150:0.45) node[left, inner sep=1pt, font=\footnotesize] {CH$_3$};
+    \node at (7,-1.95) {5-methylcytosine (5mC)};
+    \draw[->, thick] (1.5,-0.1) -- node[above=3pt, enz, fill=blue!12] {DNMT3A/B} node[below=2pt, font=\footnotesize] {\textit{de novo} methylation} (5.4,-0.1);
+    \draw[->, thick] (6.4,1.75) to[out=150, in=30] node[above=1pt, enz, fill=red!15] {TET1--3, via 5hmC: active demethylation} (0.6,1.75);
+    \draw[->, thick, dashed] (6.0,-2.35) to[out=-150, in=-30] node[below, font=\footnotesize] {passive demethylation (dilution by replication)} (1.0,-2.35);
+    \draw[->, thick] (8.6,0.55) arc[start angle=110, end angle=-200, radius=0.45];
+    \node[enz, fill=green!20, right] at (9.35,0.25) {DNMT1};
+    \node[right, font=\footnotesize] at (9.25,-0.4) {maintenance};
+  \end{tikzpicture}
+  \caption{DNA methylation adds a methyl group (red) to carbon 5 of cytosine. DNMT3A and DNMT3B establish new methylation; DNMT1 copies existing methylation to the new strand after DNA replication. Methylation is removed actively, by TET enzymes that oxidize 5mC to 5-hydroxymethylcytosine (5hmC) and further products that are excised and replaced, or passively, when maintenance fails and methylation is diluted over cell divisions.}
+  \label{fig:methyl_cycle}
+\end{figure}
+
+\subsection{Writing, maintaining and erasing methylation}
+
+The enzymes that place methyl groups are DNA methyltransferases (DNMTs; Figure~\ref{fig:methyl_cycle}). DNMT3A and DNMT3B establish methylation at previously unmethylated sites (\emph{de novo} methylation), for example during early development~\citep{okano1999}. When DNA is replicated, each daughter molecule has one old, methylated strand and one new, unmethylated strand. DNMT1 recognizes these hemimethylated CpGs and methylates the new strand, which is how methylation patterns are \emph{maintained} through cell division. This copying mechanism makes DNA methylation a heritable, relatively stable mark, part of the cell's \emph{epigenetic} memory. Methylation can be lost passively, when DNMT1 does not act and the mark is diluted over successive divisions, or actively, by the TET enzymes, which oxidize 5mC to 5-hydroxymethylcytosine (5hmC) and further products that DNA repair then replaces with unmodified cytosine~\citep{tahiliani2009}.
+
+\subsection{CpG islands and gene regulation}
+
+CpGs are rare in mammalian genomes, occurring at about a quarter of the frequency expected from the frequencies of C and G~\citep{bird1980}. The reason is mutation. Cytosines spontaneously lose their amino group (deamination). Unmethylated cytosine deaminates to uracil, which does not belong in DNA and is efficiently repaired. Methylated cytosine deaminates to thymine, giving a T:G mismatch that is repaired less reliably, so methylated CpGs mutate to TpG (and, on the other strand, to CpA) at a high rate. Over evolutionary time this has depleted CpGs from the methylated majority of the genome, and CpG-to-TpG transitions remain among the most frequent mutations in human populations and in cancers.
+
+The exceptions are \emph{CpG islands}, stretches of a few hundred to a few thousand base pairs with high GC content and close to the expected CpG frequency (a common working definition is at least 200 bp, GC content above 50\% and an observed-to-expected CpG ratio above 0.6~\citep{gardinergarden1987}). There are roughly 25{,}000 to 30{,}000 CpG islands in the human genome, similar to the number of genes, and about 70\% of gene promoters overlap one~\citep{saxonov2006}. Most CpG islands are unmethylated in most cells, which is why they have escaped CpG depletion (Figure~\ref{fig:cpg_island}).
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\small}]
+    \draw[thick] (0,0) -- (12,0);
+    \draw[fill=blue!20] (7.4,-0.15) rectangle (11.6,0.15);
+    \node at (9.5,-0.45) {gene};
+    \draw[->, thick] (7.4,0.15) -- (7.4,0.75) -- (8.2,0.75);
+    \node[above] at (7.4,0.75) {TSS};
+    % flanking methylated CpGs
+    \foreach \x in {0.5, 1.4, 2.6, 3.5, 4.3, 10.1, 11.2} {
+      \draw (\x,0) -- (\x,0.45); \fill (\x,0.45) circle (2.5pt);
+    }
+    % island unmethylated CpGs
+    \foreach \x in {5.4,5.65,5.9,6.15,6.4,6.65,6.9,7.15} {
+      \draw (\x,0) -- (\x,0.45); \draw[fill=white] (\x,0.45) circle (2.5pt);
+    }
+    \draw[decorate, decoration={brace, mirror, amplitude=4pt}] (5.3,-0.25) -- (7.25,-0.25) node[midway, below=4pt, align=center] {CpG island};
+    \node[align=center, font=\footnotesize] at (2.4,-0.6) {sparse CpGs, mostly methylated};
+    \fill (0.4,1.4) circle (2.5pt); \node[right, font=\footnotesize] at (0.55,1.4) {methylated CpG};
+    \draw[fill=white] (3.6,1.4) circle (2.5pt); \node[right, font=\footnotesize] at (3.75,1.4) {unmethylated CpG};
+  \end{tikzpicture}
+  \caption{Most CpGs in the genome are sparse and methylated. CpG islands, dense clusters of CpGs, often overlap promoters near the transcription start site (TSS) and are usually unmethylated when the gene is active.}
+  \label{fig:cpg_island}
+\end{figure}
+
+DNA methylation at promoters is associated with repression of transcription. If a gene is active in a cell type, its promoter CpG island tends to be unmethylated, and across cell types the methylation of a promoter island is strongly anticorrelated with the expression of its gene. Methylated promoter islands are associated with stable, long-term silencing, as on the inactive X chromosome and at imprinted genes~\citep{deaton2011,jones2012}. The mechanisms are still being worked out. One is that many transcription factors, which more often activate than repress transcription, bind methylated DNA less well than unmethylated DNA, although some prefer methylated sites~\citep{yin2017}. Another is crosstalk with the chromatin marks of Chapter 3: DNA methylation and histone modifications influence each other, so that methylation can affect transcription indirectly, and which comes first is not always clear. Methylation in gene bodies, in contrast, tends to be positively correlated with expression~\citep{jones2012}. Together, transcription factor binding, chromatin accessibility, histone modifications and DNA methylation interact to let each cell type express its own set of genes.
+
+DNA methylation also changes with age, consistently enough to serve as a molecular clock. \citet{horvath2013} fit an elastic net, the combination of ridge and lasso penalties from Chapter 1, to predict chronological age from methylation array data and obtained a predictor based on 353 CpGs that is accurate across many tissues. Such ``epigenetic clocks'' are now widely used as biomarkers of biological ageing.
+
+\subsection{Measuring methylation by bisulfite sequencing}
+
+Methylation can be measured with microarrays, which probe a predefined set of hundreds of thousands of CpGs and have been used in large population cohorts, or by sequencing. The standard sequencing approach relies on the chemistry of \emph{sodium bisulfite}~\citep{frommer1992}. Bisulfite treatment converts unmethylated cytosine to uracil, but leaves 5mC unchanged. During amplification and sequencing, uracil is read as thymine. After treatment, a methylated CpG therefore still reads as CpG, while an unmethylated CpG reads as TpG (Figure~\ref{fig:bisulfite}). The reads are aligned to the reference genome with an aligner that allows for these conversions, such as Bismark~\citep{krueger2011}. At each CpG, a read showing C indicates methylation and a read showing T indicates its absence. Cytosines outside CpG context are almost all unmethylated in somatic cells, so their conversion rate measures how complete the bisulfite reaction was. Bisulfite treatment does not distinguish 5mC from 5hmC; variants such as oxidative bisulfite sequencing separate the two~\citep{booth2012}.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>=Stealth, every node/.style={font=\ttfamily\small}]
+    \def\seqA{A,T,G,A,C,G,A,T,C,G,A}
+    \def\seqB{A,T,G,A,C,G,A,T,U,G,A}
+    \def\seqC{A,T,G,A,C,G,A,T,T,G,A}
+    \foreach \c [count=\i] in \seqA \node at (0.32*\i,0) {\c};
+    \foreach \c [count=\i] in \seqB \node at (0.32*\i+5,0) {\c};
+    \foreach \c [count=\i] in \seqC \node at (0.32*\i+10,0) {\c};
+    \foreach \off in {0,5} { \draw (0.32*5+\off,0.2) -- (0.32*5+\off,0.5); \fill (0.32*5+\off,0.5) circle (2.5pt); }
+    \draw (0.32*9,0.2) -- (0.32*9,0.5); \draw[fill=white] (0.32*9,0.5) circle (2.5pt);
+    \draw[->, thick] (4.0,0) -- node[above, font=\small\rmfamily] {bisulfite} (5.05,0);
+    \draw[->, thick] (9.0,0) -- node[above, font=\small\rmfamily] {sequence} (10.05,0);
+    \node[red!70!black] at (0.32*9+5,0) {U};
+    \node[red!70!black] at (0.32*9+10,0) {T};
+    \node[font=\footnotesize\rmfamily, align=center] at (2.0,-0.65) {genomic DNA};
+    \node[font=\footnotesize\rmfamily, align=center] at (7.0,-0.65) {after conversion};
+    \node[font=\footnotesize\rmfamily, align=center] at (12.0,-0.65) {read: CpG = methylated,\\TpG = unmethylated};
+  \end{tikzpicture}
+  \caption{Bisulfite sequencing. Of the two CpGs, the first is methylated (filled circle) and the second is not (open circle). Bisulfite converts the unmethylated cytosine to uracil, which is read as thymine; the methylated cytosine is protected. Aligned to the reference, the unmethylated site looks like a C-to-T substitution.}
+  \label{fig:bisulfite}
+\end{figure}
+
+Bisulfite-induced C-to-T changes resemble real mutations, and also the DNA damage seen in ancient DNA: in fragments recovered from Neanderthal remains, cytosine deamination produces an excess of apparent C-to-T substitutions, especially near the ends of molecules~\citep{briggs2007}.
+
+\emph{Whole-genome bisulfite sequencing} (WGBS) applies this to the entire genome~\citep{lister2009}. Because the genome is mostly CpG-poor, much of the sequencing is spent on regions with few CpGs. \emph{Reduced representation bisulfite sequencing} (RRBS)~\citep{meissner2005} first digests the DNA with the restriction enzyme MspI, which cuts at CCGG, and selects short fragments. This enriches for CpG-dense regions such as CpG islands and promoters, giving deeper coverage of a small, CpG-rich fraction of the genome at lower cost.
+
+\subsection{From read counts to methylation levels}
+\label{sec:read_counts}
+
+In a bulk sample, a CpG is covered by $n$ reads from different cells, $m$ of which show C. The methylation level $q\in[0,1]$, the fraction of DNA copies methylated at that site, is estimated by $\hat q=m/n$. Modelling $m\mid q\sim\text{Binomial}(n,q)$ with a uniform prior on $q$, the posterior is $q\mid m\sim\text{Beta}(1+m,1+n-m)$, whose width shrinks roughly as $1/\sqrt{n}$ (Figure~\ref{fig:meth_post}). Deep bulk sequencing gives nearly continuous, precise estimates. In a single cell there are only two copies of each CpG (one per homologous chromosome), and in practice a CpG is covered by at most one or two reads, so each observation is essentially binary, and most CpGs are not observed at all. Single-cell bisulfite sequencing (scBS-seq)~\citep{smallwood2014} covers on the order of 20--40\% of CpGs per cell, and single-cell RRBS 1--10\%~\citep{angermueller2017}. To say anything about an unobserved site we must borrow information from neighbouring CpGs, from other cells and from the DNA sequence, which is the problem addressed next.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.65\linewidth]{methylation_posterior.pdf}
+  \caption{Posterior distribution of the methylation level $q$ of a CpG under a uniform prior, given $m$ methylated reads out of $n$, for data generated with $q=0.7$ (dashed line). One read, as in single-cell data, barely constrains $q$; hundreds of reads, as in deep bulk sequencing, pin it down.}
+  \label{fig:meth_post}
+\end{figure}
+
+%======================================================================
+\section{Application: imputing single-cell methylation with DeepCpG}
+\label{sec:deepcpg}
+%======================================================================
+
+\subsection{The data and the task}
+
+Single-cell methylation data can be arranged as a matrix with one row per cell and one column per CpG site, with entries 1 (methylated), 0 (unmethylated) or missing (Figure~\ref{fig:deepcpg}, left). Let $N$ be the number of cells and $M$ the number of CpG sites, $y_{ni}\in\{0,1\}$ the methylation state of site $i$ in cell $n$, and $o_{ni}\in\{0,1\}$ an indicator that it was observed. Most entries are missing. DeepCpG~\citep{angermueller2017} predicts the methylation state of every site in every cell, imputing the missing entries, from two sources of information: the DNA sequence around the site, and the observed methylation states at neighbouring sites in the same cell and in other cells. Holding out an observed site and predicting it from its context is similar in spirit to masked language modelling.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{slides/deepcpg_architecture.pdf}
+  \caption{DeepCpG. Left, single-cell bisulfite sequencing gives a sparse binary matrix of methylation states (cells $\times$ CpG sites; ``?'' marks unobserved sites). The CpG module (blue) summarizes the observed states near the target site in each cell and combines cells with a bidirectional GRU. The DNA module (green) is a CNN on the sequence window around the target site. The joint module (orange) combines the two and predicts the methylation state of the target site in every cell. Reproduced from \citet{angermueller2017} (CC BY 4.0).}
+  \label{fig:deepcpg}
+\end{figure}
+
+\subsection{The model}
+
+DeepCpG has three modules (Figure~\ref{fig:deepcpg}).
+\begin{itemize}
+  \item The \emph{DNA module} is a CNN of the kind described in Chapter 2. Its input is the one-hot encoded 1001 bp window centred on the target CpG, a $1001\times4$ matrix. Two or three convolution and max-pooling layers, followed by a dense layer, map it to a feature vector.
+  \item The \emph{CpG module} uses the observed methylation states around the target site. For each cell $n$ it forms a vector $\mathbf{v}_n\in\R^{100}$ containing the states of, and distances to, the 25 nearest observed CpGs on each side of the target site in that cell. A dense layer embeds each $\mathbf{v}_n$ into $\R^{256}$, capturing patterns within the cell. A bidirectional GRU then runs over the sequence of embedded vectors for cells $1,\dots,N$, and the final states of the two directions are concatenated into a vector in $\R^{512}$, capturing patterns across cells.
+  \item The \emph{joint module} concatenates the outputs of the DNA and CpG modules and passes them through two dense layers of 512 ReLU units. Its output layer has one sigmoid unit per cell, giving predicted probabilities $\hat y_{ni}\in(0,1)$ that site $i$ is methylated in cell $n$, so the model is multitask in the sense of Chapter 2.
+\end{itemize}
+Note that the recurrence in the CpG module runs over cells, not along the genome. The order of the CpGs along the genome is encoded within each cell's input vector $\mathbf{v}_n$, through the states and distances of the neighbouring sites. The GRU is used to compress a variable number of cells into a fixed-length vector; running it in both directions reduces the dependence of this summary on the arbitrary order in which cells are listed.
+
+The model is trained by minimizing the cross-entropy over observed entries only, with an L2 penalty on the weights $\vtheta$,
+\begin{equation}
+  L(\vtheta) = -\sum_{i=1}^M\sum_{n=1}^N o_{ni}\left[y_{ni}\log\hat y_{ni} + (1-y_{ni})\log(1-\hat y_{ni})\right] + \lambda\|\vtheta\|_2^2 .
+\end{equation}
+Unobserved entries contribute nothing to the loss, so missing data need no special treatment during training, and at prediction time the model produces $\hat y_{ni}$ for every entry. The DNA and CpG modules were first trained separately and then held fixed while the joint module was trained. Training, validation and test sets were whole chromosomes, so that test sites are not near training sites, which would otherwise share sequence context and neighbouring methylation states.
+
+\subsection{Results}
+
+The main data set was 18 mouse embryonic stem cells profiled by scBS-seq, with an average of 17.7\% of CpGs observed per cell, and the model was also applied to scRRBS-seq data from human and mouse cells~\citep{angermueller2017}. DeepCpG predicted held-out methylation states more accurately, measured by AUROC, than random forests using the same inputs or genome annotations, and than simple baselines that average observed states in a window of the same cell or at the same site across other cells (Figure~\ref{fig:deepcpg_results}a). Neighbouring methylation states were more predictive than DNA sequence, and combining the two was best.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.46\linewidth}
+    \includegraphics[width=\linewidth]{slides/deepcpg_auc.png}
+    \caption{}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.5\linewidth}
+    \includegraphics[width=\linewidth]{slides/deepcpg_imputation.png}
+    \caption{}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.8\linewidth}
+    \includegraphics[width=\linewidth]{slides/deepcpg_motifs.png}
+    \caption{}
+  \end{subfigure}
+  \caption{DeepCpG results. (a) AUROC for predicting held-out methylation states, one point per cell, for DeepCpG, random forests using annotations (RF Zhang) or the same inputs as DeepCpG (RF), and averaging across cells (CpGAvg) or within a window (WinAvg). (b) Observed states (points, at 0 or 1) and imputed methylation probabilities (lines) for three cells, shown in different shades, across a region of about 2.5 kb containing a CpG island, where observed CpGs are dense and methylation is low. (c) Examples of first-layer convolutional filters, displayed as sequence logos, associated with cell-to-cell variability in methylation (left) or with mean methylation level (right). Reproduced from \citet{angermueller2017} (CC BY 4.0).}
+  \label{fig:deepcpg_results}
+\end{figure}
+
+Figure~\ref{fig:deepcpg_results}b shows imputed profiles for three cells across a CpG island. The observations are binary and sparse, but the imputed probabilities are smooth and low across the island, where CpGs are dense, and high on the flanks, with differences between cells. As with the CNNs of Chapters 2 and 3, the first-layer filters of the DNA module can be visualized as sequence logos (Figure~\ref{fig:deepcpg_results}c). Some matched known transcription factor motifs. CG-rich motifs tended to be associated with low methylation and AT-rich motifs with high methylation. To separate motifs that affect the average methylation level from those that affect variability between cells, the authors trained a second network with the same DNA module to predict both the mean and the cell-to-cell variance of methylation in windows around each site.
+
+Like ChromHMM in Chapter 6, DeepCpG looks at epigenomic data at many positions along the genome and in many samples, and exploits the dependence between nearby positions and between samples to find structure. The difference is that ChromHMM is an unsupervised model of chromatin states, while DeepCpG is trained in a supervised way to predict held-out observations.
+
+%======================================================================
+\section{RNNs and hidden Markov models}
+\label{sec:rnn_hmm}
+%======================================================================
+
+RNNs can be thought of as the deep learning version of hidden Markov models, and the analogy is close. Recall the forward pass of Chapter 6. For an HMM with $K$ states, transition matrix $\mT\in\R^{K\times K}$ and emission likelihoods $\mathbf{e}_t\in\R^K$, $e_t(i)=P(y_t\mid X_t=i)$ (written $\vphi_t$ in Chapter 6), the filtered state probabilities $\vf_t\in\R^K$, $f_t(i)=P(X_t=i\mid y_{1:t})$ (not to be confused with the LSTM forget gate), satisfy
+\begin{equation}
+  \vf_t = \frac{\mathbf{e}_t\odot(\mT^\top\vf_{t-1})}{\vone^\top\left(\mathbf{e}_t\odot(\mT^\top\vf_{t-1})\right)} .
+\end{equation}
+This is an RNN with hidden state $\vf_t$: a fixed linear map of the previous state, multiplied elementwise by a vector that depends on the current observation, and normalized. Before normalization it is even a linear RNN in the sense of Section~\ref{sec:linear}, with an input-dependent gate $\mathbf{e}_t$ (though with a full matrix $\mT$ rather than a diagonal one). The backward pass is a second recurrence running in the opposite direction, and combining the two to compute posterior marginals corresponds to a bidirectional RNN. The differences lie in what the state represents and how the model is fit. The HMM state vector is a probability distribution over a small number of interpretable discrete states, the model is generative and is fit by maximum likelihood with EM, and its recurrence is fixed by the probabilistic model. The RNN state is an unconstrained continuous vector, the recurrence is a learned nonlinear function, and the model is usually trained discriminatively by gradient descent. The RNN is therefore more flexible, at the cost of interpretability and of the probabilistic guarantees that come with the HMM.
+
+%======================================================================
+\section{Summary}
+%======================================================================
+
+\begin{itemize}
+  \item RNNs process a sequence by applying the same small network at every position, carrying a hidden state $\vh_t=f_{\mW}(\vh_{t-1},\vx_t)$. They handle variable input and output lengths, can in principle carry information over long distances, and are naturally causal, which suits autoregressive modelling. They are the deep learning analogue of HMMs.
+  \item The vanilla RNN is trained by backpropagation through time, which multiplies the gradient by the same matrix $\mW_h$ at every step. The gradient therefore vanishes or explodes exponentially with distance, depending on the singular values of $\mW_h$.
+  \item Gated units fix this by making the step-to-step dependence data-adaptive. The GRU interpolates between the old state and a candidate with an update gate; the LSTM keeps a separate cell state controlled by input, forget and output gates. Gradients flow along the gated direct path without repeated multiplication by the same matrix.
+  \item Bidirectional RNNs combine a forward and a backward pass so that each position sees the whole sequence. Linear RNNs, whose state update is linear in the previous state, can be computed in parallel with a prefix scan; they underlie DNA language models such as HyenaDNA, Mamba-based Caduceus and hybrid models such as Evo.
+  \item DNA methylation of cytosines at CpGs is a heritable epigenetic mark, generally low in active promoter CpG islands and associated with repression. Bisulfite sequencing measures it by converting unmethylated cytosines, which are then read as thymines. Single-cell data are binary and sparse, and DeepCpG imputes them by combining a CNN on DNA sequence with a bidirectional GRU that pools neighbouring methylation states across cells.
+\end{itemize}
+
+%======================================================================
+\section*{Exercises}
+%======================================================================
+
+\begin{enumerate}
+  \item Derive the GRU Jacobian~\eqref{eq:gru_jac}. Show that if $z_{tk}\to0$ for all $k$, then $\partial\vh_t/\partial\vh_{t-1}\to\mI$, and that if $z_{tk}\to1$ for all $k$, the Jacobian approaches $\diag(\vone-\vg_t\odot\vg_t)\diag(\vr_t)\mW_h$ plus a term involving the reset gate. Interpret the two limits.
+  \item For the LSTM~\eqref{eq:lstm}, write $\partial\vc_t/\partial\vc_{t-1}$ including the dependence of the gates on $\vh_{t-1}=\vo_{t-1}\odot\tanh(\vc_{t-1})$. Under what conditions on the gates is the additional term small?
+  \item Show that the operation $\bullet$ of Section~\ref{sec:linear} is associative. For $S=8$, write out the steps of a parallel prefix scan that computes $\vh_1,\dots,\vh_8$, and count the number of sequential steps and of applications of $\bullet$.
+  \item Implement a vanilla RNN and a GRU, with the same hidden dimension, for a synthetic task: given a random DNA sequence of length $S$, predict its first nucleotide from the final hidden state. Plot test accuracy against $S$ for each model. Repeat with gradient clipping for the vanilla RNN.
+  \item Under the binomial model of Section~\ref{sec:read_counts} with a uniform prior, find the posterior mean of $q$ after a single read showing C. Suppose instead that $q$ is shared by $J$ neighbouring CpGs in the same cell, each covered by one read. How does the posterior change, and what assumption does this make? Relate this to the window-averaging baseline of DeepCpG.
+  \item DeepCpG's CpG module runs a bidirectional GRU across cells, so its output depends on the order of the cells. Propose a summary of the cells that is invariant to their order. Then propose an alternative CpG module in which a bidirectional RNN runs along the genome within each cell. What information does each design use, and what are their computational costs?
+\end{enumerate}
