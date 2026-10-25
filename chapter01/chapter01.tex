@@ -44,7 +44,7 @@ Sequencing was first used to read genomes, either of different species or of dif
 
 Statistical genetics asks how genotype (an individual's genetic make-up) is associated with phenotype (a trait), and ideally which of those associations are causal. The trait might be quantitative, like height, or a disease. For example, people carry different versions (\emph{alleles}) of the gene \textit{APOE}, and these alleles confer different risks of Alzheimer's disease. More generally we want to know which genetic differences, and which genes, contribute to a phenotype. That knowledge can guide the design of drugs that intervene on the relevant genes, or the breeding and engineering of crops that are more resilient to climate change.
 
-One motivation for genome-wide association studies (GWAS) comes from retrospective analyses of drug development. Drug targets that are supported by human genetic evidence are at least twice as likely to progress from clinical trials to approval as targets without such support (Figure~\ref{fig:genetic_support}). The genetic evidence can come from Mendelian disease genes, catalogued in Online Mendelian Inheritance in Man (OMIM), or from GWAS, where linking an associated variant to a gene requires additional information such as linkage disequilibrium, expression quantitative trait loci (eQTLs) and enhancer-gene maps.
+One motivation for genome-wide association studies (GWAS) comes from retrospective analyses of drug development. Drug targets that are supported by human genetic evidence are at least twice as likely to progress from clinical trials to approval as targets without such support (Figure~\ref{fig:genetic_support}). The genetic evidence can come from Mendelian disease genes, catalogued in Online Mendelian Inheritance in Man (OMIM), or from GWAS, where linking an associated variant to a gene requires additional information such as linkage disequilibrium, expression quantitative trait loci (eQTLs) and enhancer-gene maps. The stakes are high because clinical trials are long and expensive. Phase I trials mainly test safety, phase II begins to test efficacy, and phase III tests the drug in many more patients, so a drug that will fail should fail as early as possible. A twofold improvement in the success rate is valuable, but most drug candidates still fail.
 
 \begin{figure}[t]
   \centering
@@ -55,7 +55,7 @@ One motivation for genome-wide association studies (GWAS) comes from retrospecti
 
 \subsection{Functional genomics}
 
-Functional genomics uses sequencing for a different task, measuring the state of cells or tissue samples. ``Functional'' refers to using these measurements to understand how cells and genes function, that is, how they carry out the processes they need to survive and respond to their environment. The typical workflow is shown in Figure~\ref{fig:fg_loop}. We take a sample of cells, from an experiment or a patient, and use biochemistry to convert the quantity we want to measure into DNA molecules. We then sequence that DNA. The computational task is to infer the original state of the cells from the sequencing reads.
+Functional genomics uses sequencing for a different task, measuring the state of cells or tissue samples. ``Functional'' refers to using these measurements to understand how cells and genes function, that is, how they carry out the processes they need to survive and respond to their environment. The typical workflow is shown in Figure~\ref{fig:fg_loop}. We take a sample of cells, from an experiment or a patient, and use biochemistry to convert the quantity we want to measure into DNA molecules. We then sequence that DNA. With current short-read technology each \emph{read} is a substring of one of the DNA molecules in the pool, so the output of a sequencing run is a large collection of short strings. The computational task is to infer the original state of the cells from these reads. For example, comparing post-mortem brain tissue from people with and without Alzheimer's disease, we would like to know which genes are more or less active in the disease.
 
 \begin{figure}[t]
   \centering
@@ -157,7 +157,7 @@ The genome is divided into chromosomes, each a long DNA molecule; a human chromo
 
 \subsection{DNA}
 
-DNA is a double-stranded polymer of four nucleotides, A, T, G and C. The two strands are complementary: A pairs with T and C pairs with G (Figure~\ref{fig:dna}). Each strand has a direction, written from its $5'$ end to its $3'$ end, and the two strands run in opposite directions. By convention we call one strand the forward ($+$) strand and the other the reverse ($-$) strand, so that a sequence read from the reverse strand is the reverse complement of the forward sequence. Separating the strands is the first step both in duplicating DNA, during mitosis (asexual cell division) and meiosis (the cell division that produces gametes for sexual reproduction), and in transcription.
+DNA is a double-stranded polymer of four nucleotides, A, T, G and C. The two strands are complementary: A pairs with T and C pairs with G (Figure~\ref{fig:dna}). Each strand has a direction, written from its $5'$ end to its $3'$ end, and the two strands run in opposite directions. Positions toward the $5'$ end of a strand are called \emph{upstream} and positions toward the $3'$ end \emph{downstream}. By convention we call one strand the forward ($+$) strand and the other the reverse ($-$) strand, so that a sequence read from the reverse strand is the reverse complement of the forward sequence. The reverse complement is obtained by reversing the sequence and replacing each base by its partner; for example, the reverse complement of ATTGCG is CGCAAT. Separating the strands is the first step both in duplicating DNA, during mitosis (asexual cell division) and meiosis (the cell division that produces gametes for sexual reproduction), and in transcription.
 
 \begin{figure}[t]
   \centering
@@ -187,11 +187,11 @@ DNA is a double-stranded polymer of four nucleotides, A, T, G and C. The two str
 
 \subsection{RNA and gene expression}
 
-RNA uses the same nucleotides as DNA except that thymine (T) is replaced by uracil (U). The number of RNA copies of a gene in a cell is what we call that gene's \emph{expression}. Cells control expression in response to three kinds of question: \emph{when} (for example at different stages of development), \emph{where} (in which tissues and cell types) and \emph{why} (in response to a stimulus, for example an immune challenge). The mechanisms by which they do so are collectively called \emph{gene regulation}.
+RNA uses the same nucleotides as DNA except that thymine (T) is replaced by uracil (U). It is usually single stranded, although parts of a molecule can pair with each other to form double-stranded \emph{secondary structure}. Some RNAs have functions of their own, but the main role of RNA in our cells is as a messenger from the nucleus to the cytoplasm. Its sequence specifies the sequence of a protein through the \emph{genetic code}, in which each triplet of nucleotides (a \emph{codon}) encodes one amino acid, and the number of copies specifies how much of the protein the cell needs. The number of RNA copies of a gene in a cell is what we call that gene's \emph{expression}. Cells control expression in response to three kinds of question: \emph{when} (for example at different stages of development), \emph{where} (in which tissues and cell types) and \emph{why} (in response to a stimulus, for example an immune challenge). The mechanisms by which they do so are collectively called \emph{gene regulation}.
 
 \subsection{RNA-seq}
 
-RNA sequencing (RNA-seq) measures gene expression (Figure~\ref{fig:rnaseq}). RNA molecules are extracted from cells; they are typically of the order of 1000 nt long. The RNA is fragmented and reverse transcribed into complementary DNA (cDNA), giving fragments of around 300--400 nt. The cDNA is sequenced, producing reads of around 100--150 nt; a typical experiment yields 30--100 million reads per sample. The reads are aligned to the genome, and the number of reads overlapping each gene is counted. These counts, suitably normalized, are the gene expression measurements we will model.
+RNA sequencing (RNA-seq) measures gene expression (Figure~\ref{fig:rnaseq}). RNA molecules are extracted from cells; they are typically of the order of 1000 nt long. Current sequencing machines read DNA, not RNA, so the RNA is fragmented and reverse transcribed into complementary DNA (cDNA), giving fragments of around 300--400 nt. Reverse transcription, carried out by the enzyme reverse transcriptase, changes the chemistry but not the information: the cDNA carries the same sequence as the RNA, and the step works for any input RNA without knowing its sequence. The cDNA is sequenced, producing reads of around 100--150 nt; a typical experiment yields 30--100 million reads per sample. The reads are aligned to the genome (or to the transcriptome, the set of known RNA sequences), a string-matching problem for which efficient algorithms exist. Reads from an actively transcribed gene pile up in the same region; the number of reads overlapping a position is its \emph{coverage}. The number of reads overlapping each gene is counted. These counts, suitably normalized, are the gene expression measurements we will model.
 
 \begin{figure}[t]
   \centering
@@ -221,7 +221,7 @@ RNA sequencing (RNA-seq) measures gene expression (Figure~\ref{fig:rnaseq}). RNA
   \label{fig:rnaseq}
 \end{figure}
 
-Bulk RNA-seq is applied to a tissue sample containing many cells, so it measures the average expression across all cells in the sample. Single-cell RNA-seq (scRNA-seq) measures expression in individual cells, which reveals heterogeneity between cell types that bulk measurements average over (Figure~\ref{fig:bulk_sc}). We will return to single-cell data in later chapters.
+Bulk RNA-seq is applied to a tissue sample containing many cells, so it measures the average expression across all cells in the sample. In a brain sample, for example, reads from neurons and from glial cells are mixed, and a read carries no information about which cell type it came from. Single-cell RNA-seq (scRNA-seq) uses additional biochemistry to attach a \emph{barcode} identifying the cell of origin to each molecule, so that expression can be measured in individual cells, which reveals heterogeneity between cell types that bulk measurements average over (Figure~\ref{fig:bulk_sc}). Current technologies can profile up to around a million cells in one experiment, although single-cell experiments remain more expensive than bulk ones. We will return to single-cell data in later chapters.
 
 \begin{figure}[t]
   \centering
@@ -231,11 +231,28 @@ Bulk RNA-seq is applied to a tissue sample containing many cells, so it measures
 \end{figure}
 
 %======================================================================
-\section{Application: predicting cancer drug sensitivity}
+\section{Application: precision medicine for cancer}
 \label{sec:drug_app}
 %======================================================================
 
-Cancer cell lines are populations of cells derived from patient tumours that can be grown in culture indefinitely (Figure~\ref{fig:culture}). Each line can be profiled with RNA-seq and other assays, and in parallel screened for its sensitivity to a panel of drugs. Several consortia have generated such data at scale, including the Cancer Cell Line Encyclopedia (CCLE)~\citep{barretina2012}, Genomics of Drug Sensitivity in Cancer (GDSC)~\citep{garnett2012} and the Cancer Therapeutics Response Portal (CTRP)~\citep{seashore2015}. The resulting data can be arranged as two matrices with a shared row index (Figure~\ref{fig:data_matrices}a). The expression matrix has one row per cell line and one column per gene. The sensitivity matrix has one row per cell line and one column per drug. Predicting the sensitivity of cell lines to one drug, say drug A, from their gene expression is a regression problem, and it is the running example of the first half of this chapter.
+\subsection{From one drug per disease to precision medicine}
+
+Cancer treatment strategies can be placed on a spectrum according to how much information about the individual tumour they use.
+\begin{description}
+  \item[Traditional treatment] gives everyone with the same disease the same therapy. Pancreatic and ovarian cancers, for example, are still mostly treated with chemotherapy, which kills dividing cells whether or not they are cancerous. It improves survival but has severe side effects.
+  \item[Targeted therapy] chooses a drug based on the expression or mutation of one or two genes. In breast cancer, tumours with high expression of \textit{HER2} are treated with trastuzumab, an antibody that binds the HER2 protein, and tumours expressing the estrogen or progesterone receptor are treated with endocrine therapy such as tamoxifen. Much of the recent progress in cancer treatment has come from finding single genes whose activity a drug can block. Triple-negative breast cancers, which express none of these three receptors, have fewer treatment options.
+  \item[Precision medicine] chooses treatments for subgroups of patients based on many features of the tumour, potentially the expression of many genes. It is most needed for difficult cases: \emph{recurrent} cancer, which returns after treatment; \emph{refractory} cancer, which resists drugs that should work; and \emph{metastatic} cancer, which has spread to other parts of the body.
+  \item[Personalized medicine] would choose a different treatment for every patient. This is not generally practical, and precision medicine is the compromise of treating groups of patients with similar tumour profiles in the same way.
+\end{description}
+Even within one cancer type, such as lung cancer, tumours are heterogeneous: different genes are altered in different patients, so different drugs are likely to work. Precision medicine therefore needs models that predict which drugs will work for a given tumour, and such models need training data.
+
+\subsection{Cancer cell lines as a model system}
+
+Collecting the training data in humans is difficult. We cannot give patients drugs at random to see which ones work, since each patient must receive the best available treatment, and mouse models are expensive and do not exist for every cancer. A common alternative is a \emph{model system}, a system that is easier to experiment on and that resembles the one we care about. Cancer cell lines are populations of cells derived from patient tumours that can be grown in culture (Figure~\ref{fig:culture}). Tumour tissue, usually from surgery, is dissociated into single cells, which are cultivated and enriched for cancer cells. Cancer cells proliferate and survive in conditions where normal cells would not, which makes them much easier to keep alive in a dish. Once established, a line can be propagated indefinitely, although it continues to acquire mutations, so lines are periodically resequenced. The best-known example, the HeLa line, was established in 1951 from Henrietta Lacks's tumour without her knowledge or consent, a case that shaped later rules on consent for research use of patient tissue. Cell lines are not tumours, but they are close enough to be useful. Each line can be profiled with RNA-seq and other assays, and in parallel screened for its sensitivity to a panel of drugs.
+
+\subsection{Drug sensitivity data}
+
+Several consortia have generated such data at scale, including the Cancer Cell Line Encyclopedia (CCLE)~\citep{barretina2012}, Genomics of Drug Sensitivity in Cancer (GDSC)~\citep{garnett2012} and the Cancer Therapeutics Response Portal (CTRP)~\citep{seashore2015}. The resulting data can be arranged as two matrices with a shared row index (Figure~\ref{fig:data_matrices}a). The expression matrix has one row per cell line and one column per gene. The sensitivity matrix has one row per cell line and one column per drug. In practice more lines have expression data than drug screening data, and we use the lines that have both. Predicting the sensitivity of cell lines to one drug, say drug A, from their gene expression is a regression problem, and it is the running example of the first half of this chapter.
 
 \begin{figure}[t]
   \centering
@@ -273,7 +290,7 @@ Cancer cell lines are populations of cells derived from patient tumours that can
   \label{fig:data_matrices}
 \end{figure}
 
-Sensitivity is summarized from a dose-response experiment for each drug-cell line pair (Figure~\ref{fig:dose_response}). The cell line is grown at a series of drug concentrations and its growth is measured relative to untreated cells. Two common summaries are the IC$_{50}$, the concentration at which growth is reduced by half, and the \emph{activity area}, the area between the dose-response curve and 100\% growth. A larger activity area means a more sensitive cell line. The CCLE study, for example, screened 24 drugs across 479 cell lines spanning many tumour types (Figure~\ref{fig:ccle_types})~\citep{barretina2012}.
+Sensitivity is summarized from a dose-response experiment for each drug-cell line pair (Figure~\ref{fig:dose_response}). The cell line is grown at a series of drug concentrations and its growth is measured relative to untreated cells. Two common summaries are the IC$_{50}$, the concentration at which growth is reduced by half, and the \emph{activity area}, the area between the dose-response curve and 100\% growth. A larger activity area means a more sensitive cell line. The activity area also captures something the IC$_{50}$ misses. Two lines can have the same IC$_{50}$, but if growth in one of them plateaus at 10--20\% of untreated even at high concentrations, a resistant subpopulation survives and the cancer can regrow. A curve that reaches zero growth has a larger activity area. Both are heuristic one-number summaries of the curve, which we then try to predict from the molecular features of the cell lines. The CCLE study, for example, screened 24 drugs across 479 cell lines spanning many tumour types (Figure~\ref{fig:ccle_types})~\citep{barretina2012}.
 
 \begin{figure}[t]
   \centering
@@ -350,11 +367,12 @@ In matrix notation this is $\mX^\top\mX\vb = \mX^\top\vy$, with dimensions $[P\t
   \hat\vb = (\mX^\top\mX)^{-1}\mX^\top\vy .
   \label{eq:ols}
 \end{equation}
+It is ``least squares'' because it minimizes the sum of squared residuals, and ``ordinary'' because it is not regularized (Section~\ref{sec:ridge}). Because the log likelihood is quadratic, the stationary point is the global maximum, not only a local one: in one dimension $\log L$ is a downward parabola in $\beta$, and in two dimensions its contours are concentric ellipses around $\hat\vb$.
 In practice we do not form the inverse explicitly. Equation~\eqref{eq:ols} has the form $\mathbf{A}\vb=\mathbf{c}$ with $\mathbf{A}=\mX^\top\mX$ and $\mathbf{c}=\mX^\top\vy$, so we call a linear solver, $\hat\vb=\texttt{solve}(\mX^\top\mX,\mX^\top\vy)$, which is faster and numerically more stable.
 
 \subsection{Special case: independent covariates}
 
-Suppose $\vy$ and each column $\mX_{:j}$ have been standardized to mean zero and variance one, and that the features are uncorrelated, $\operatorname{corr}(\mX_{:j},\mX_{:k})=0$ for $j\neq k$. Then $\mX^\top\mX=N\mI$, where $\mI$ is the $P\times P$ identity, and
+Suppose $\vy$ and each column $\mX_{:j}$ have been standardized to mean zero and variance one, and that the features are uncorrelated, $\operatorname{corr}(\mX_{:j},\mX_{:k})=0$ for $j\neq k$. Standardizing is not restrictive, since any data can be centered and scaled; the strong assumption is the absence of correlation. For standardized columns $\operatorname{corr}(\mX_{:j},\mX_{:k})=\frac{1}{N}\mX_{:j}^\top\mX_{:k}$, so $\frac{1}{N}\mX^\top\mX$ is the correlation matrix of the features. Under our assumption it is the identity, so $\mX^\top\mX=N\mI$, where $\mI$ is the $P\times P$ identity, and
 \begin{equation}
   \hat\vb = (N\mI)^{-1}\mX^\top\vy = \frac{1}{N}\mX^\top\vy, \qquad \hat\beta_j = \frac{1}{N}\mX_{:j}^\top\vy = \operatorname{corr}(\mX_{:j},\vy).
 \end{equation}
@@ -420,7 +438,7 @@ This is the \emph{ridge regression} estimator~\citep{hoerl1970}. Equivalently, i
 \begin{equation}
   \frac{1}{2}\sum_{i=1}^N\left(y_i-\vx_i^\top\vb\right)^2 + \frac{\lambda}{2}\|\vb\|_2^2 ,
 \end{equation}
-where $\|\vb\|_2^2=\sum_j\beta_j^2$. The added term is called \emph{L2 regularization}: it penalizes large coefficients and shrinks the estimate toward zero. Because $\lambda>0$ makes $\mX^\top\mX+\lambda\mI$ invertible for any $\mX$, ridge regression has a unique solution even when $N<P$. The regularization strength $\lambda$ is the ratio of noise variance to prior variance: a broad prior (large $\sigma_\beta^2$) or low noise means weak regularization. Only the ratio matters for $\hat\vb_{\text{MAP}}$. Scaling $\sigma^2$ and $\sigma_\beta^2$ together changes the curvature of the posterior, and therefore our uncertainty, but not its mode. Since the penalty treats all coefficients alike, features should be put on a common scale, usually by standardizing each column of $\mX$, before fitting.
+where $\|\vb\|_2^2=\sum_j\beta_j^2$. The added term is called \emph{L2 regularization}: it penalizes large coefficients and shrinks the estimate toward zero. Because $\lambda>0$ makes $\mX^\top\mX+\lambda\mI$ invertible for any $\mX$, ridge regression has a unique solution even when $N<P$. The regularization strength $\lambda$ is the ratio of noise variance to prior variance: a broad prior (large $\sigma_\beta^2$) or low noise means weak regularization. As $\sigma_\beta^2\to\infty$, $\lambda\to 0$ and $\hat\vb_{\text{MAP}}$ becomes the OLS estimate. Conversely, a larger noise variance means that more of the variation in $\vy$ is attributed to noise, so less of it is attributed to $\vb$ and the estimate is shrunk further. Only the ratio matters for $\hat\vb_{\text{MAP}}$. Scaling $\sigma^2$ and $\sigma_\beta^2$ together changes the curvature of the posterior, and therefore our uncertainty, but not its mode. Since the penalty treats all coefficients alike, features should be put on a common scale, usually by standardizing each column of $\mX$, before fitting.
 
 Because the prior and likelihood are both Gaussian in $\vb$, the posterior is Gaussian as well, with mean $\hat\vb_{\text{MAP}}$ and covariance $\sigma^2(\mX^\top\mX+\lambda\mI)^{-1}$. For Gaussian posteriors the MAP and posterior mean coincide.
 
@@ -429,8 +447,9 @@ Because the prior and likelihood are both Gaussian in $\vb$, the posterior is Ga
 There are two common options for choosing the regularization strength.
 \begin{enumerate}
   \item \emph{Cross-validation}: choose the $\lambda$ that gives the best predictions on held-out data (Section~\ref{sec:model_selection}).
-  \item \emph{Empirical Bayes}, or maximum marginal likelihood: choose $\sigma^2$ and $\sigma^2_\beta$ to maximize the evidence $p(\vy\mid\mX,\sigma^2,\sigma_\beta^2)$. Integrating out $\vb$ gives $\vy\mid\mX\sim\Normal\left(\mathbf{0},\,\sigma_\beta^2\mX\mX^\top+\sigma^2\mI_N\right)$, which can be maximized numerically.
+  \item \emph{Empirical Bayes}, or maximum marginal likelihood: choose $\sigma^2$ and $\sigma^2_\beta$ to maximize the evidence $p(\vy\mid\mX,\sigma^2,\sigma_\beta^2)$. Integrating out $\vb$ gives $\vy\mid\mX\sim\Normal\left(\mathbf{0},\,\sigma_\beta^2\mX\mX^\top+\sigma^2\mI_N\right)$, which can be maximized numerically. Standard libraries implement this, for example \texttt{BayesianRidge} in scikit-learn.
 \end{enumerate}
+Cross-validation is the more common choice in practice.
 
 Section 3.4.1 of \citet{esl} gives a complementary treatment of ridge regression.
 
@@ -444,14 +463,14 @@ The metrics used for classification (accuracy, precision, recall, area under the
 \begin{itemize}
   \item The \emph{sum of squared errors} is $\text{SS}=\sum_i(y_i-\hat y_i)^2$. It is hard to interpret because it depends on the number of samples and on the scale of $y$.
   \item The \emph{mean squared error} $\text{MSE}=\frac{1}{N}\text{SS}$ removes the dependence on $N$, and the \emph{root mean squared error} $\text{RMSE}=\sqrt{\text{MSE}}$ is on the same scale, and in the same units, as $y$. MSE and RMSE estimate the noise variance $\sigma^2$ and standard deviation $\sigma$. This holds only if the model neither overfits, in which case they underestimate the noise, nor underfits, in which case they overestimate it.
-  \item MSE and RMSE still depend on the scale of $y$, so they cannot be compared across data sets. The \emph{coefficient of determination} is
+  \item MSE and RMSE still depend on the scale of $y$, so they cannot be compared across data sets. An RMSE of a few centimetres is good for predicting height, but for many responses, such as an activity area, we have no intuition for what a good RMSE is. The \emph{coefficient of determination} is
   \begin{equation}
     R^2 = 1-\frac{\text{SS}}{\text{TSS}} = 1-\frac{\text{MSE}}{s_y^2}, \qquad \text{TSS}=\sum_i(y_i-\bar y)^2,
   \end{equation}
   where $\bar y$ is the mean of $\vy$, $\text{TSS}$ is the total sum of squares and $s_y^2=\text{TSS}/N$ is the variance of the observations. For centered $\vy$, $\text{TSS}=\sum_i y_i^2$. $R^2$ is the proportion of variance explained (PVE) by the model. If $\vy$ is scaled to unit variance, $R^2=1-\text{MSE}$.
 \end{itemize}
 
-For the least-squares fit of a model with an intercept, evaluated on the training data, $R^2$ equals the squared Pearson correlation between $\vy$ and $\hat\vy$ and lies in $[0,1]$, with 0 meaning no agreement and 1 meaning perfect prediction. On held-out data the two can differ: the Pearson correlation ignores the mean and scale of the predictions, while $R^2$ does not, and held-out $R^2$ can be negative if predictions are worse than predicting the mean. Figure~\ref{fig:rmse} illustrates RMSE as the typical vertical distance of points from the fitted line.
+For the least-squares fit of a model with an intercept, evaluated on the training data, $R^2$ equals the squared Pearson correlation between $\vy$ and $\hat\vy$ and lies in $[0,1]$, with 0 meaning no agreement and 1 meaning perfect prediction. On held-out data the two can differ: the Pearson correlation ignores the mean and scale of the predictions, while $R^2$ does not, and held-out $R^2$ can be negative if predictions are worse than predicting the mean. Because $R^2$ has the same meaning, the fraction of the variance in the response that the features explain, whatever the response is, it is usually the most useful single summary. What $R^2$ is achievable depends on the problem as much as on the model. In many machine learning benchmarks the labels are essentially noise-free, so a good enough model could predict perfectly; biological responses are noisy, and even the best possible model may have a modest $R^2$. Figure~\ref{fig:rmse} illustrates RMSE as the typical vertical distance of points from the fitted line.
 
 \begin{figure}[t]
   \centering
@@ -480,7 +499,7 @@ We sometimes describe a regression model informally as ``accurate''. For classif
 
 \subsection{Training, validation and test sets}
 
-To choose hyperparameters such as $\lambda$ and to assess how well a model generalizes, we split the samples into three sets (Figure~\ref{fig:splits}a). The \emph{training set} (for example 60\% of samples) is used in the likelihood or loss to fit the parameters $\vb$. The \emph{validation set} (20\%) is used to estimate the generalization error of models fit with different hyperparameters, and to pick the best. The \emph{test set} (20\%) is used once, at the end, for a final assessment of generalization. Using the test set to make modelling choices leads to optimistic estimates of performance.
+To choose hyperparameters such as $\lambda$ and to assess how well a model generalizes, we split the samples into three sets (Figure~\ref{fig:splits}a). The \emph{training set} (for example 60\% of samples) is used in the likelihood or loss to fit the parameters $\vb$. The \emph{validation set} (20\%) is used to estimate the generalization error of models fit with different hyperparameters, and to pick the best. The \emph{test set} (20\%) is used once, at the end, for a final assessment of generalization. The samples are randomly shuffled before splitting. Choosing $\lambda$ on the validation set and then reporting performance on the same set is a form of what statisticians call \emph{double dipping}: $\lambda$ was tuned to that data, so the reported performance is optimistic. The same applies to any modelling choice made by looking at the test set. In practice researchers rarely look at the test set exactly once, but the more often they do, the more optimistic the final estimate. Prediction competitions limit this by letting participants see their test score only a few times. Even a clean test set estimates performance on new data from the same distribution; a new data set collected in a different way may have different biases, and performance on it can be worse.
 
 \begin{figure}[t]
   \centering
@@ -513,11 +532,11 @@ To choose hyperparameters such as $\lambda$ and to assess how well a model gener
 
 \subsection{Overfitting and underfitting}
 
-Figure~\ref{fig:cv_curve} shows how validation error depends on $\lambda$. With $\lambda$ near zero the model is complex: it fits the noise in the training data and generalizes poorly, which is \emph{overfitting}. With large $\lambda$ the model is too simple: the coefficients are shrunk so far toward zero that the model misses real signal, which is \emph{underfitting}. The optimal $\lambda$ lies between.
+Figure~\ref{fig:cv_curve} shows how validation error depends on $\lambda$. With $\lambda$ near zero the model is complex: it fits the noise in the training data and generalizes poorly, which is \emph{overfitting}. With large $\lambda$ the model is too simple: the coefficients are shrunk so far toward zero that the model misses real signal, which is \emph{underfitting}. In the limits, when $P>N$ the model cannot be fit at all at $\lambda=0$, and as $\lambda\to\infty$ the estimate is $\hat\vb=\mathbf{0}$ and the model uses no information from the features. The optimal $\lambda$ lies between. It helps to think of small $\lambda$ as giving more complex models and large $\lambda$ as giving simpler ones. For ridge regression this is not visible in the number of non-zero coefficients, since all of them are non-zero for any finite $\lambda$, but the coefficients are larger, and the fitted function more variable, when $\lambda$ is small. For the lasso (Section~\ref{sec:lasso}) $\lambda$ also controls how many coefficients are non-zero.
 
 \subsection{Cross-validation}
 
-A single validation set wastes data and gives a noisy estimate of generalization error. In $K$-fold cross-validation (Figure~\ref{fig:splits}b and Algorithm~\ref{alg:cv}) the non-test data are split into $K$ folds; each fold is held out in turn while the model is trained on the rest, and the validation losses are averaged. Typical choices are $K=5$ or $K=10$. The grid of $\lambda$ values is usually spaced logarithmically.
+A single validation set wastes data and gives a noisy estimate of generalization error. In $K$-fold cross-validation (Figure~\ref{fig:splits}b and Algorithm~\ref{alg:cv}) the non-test data are split into $K$ folds; each fold is held out in turn while the model is trained on the rest, and the validation losses are averaged. Typical choices are $K=5$ or $K=10$. The extreme case $K=N$, with the test samples excluded, is \emph{leave-one-out} cross-validation: each model is trained on all but one sample and evaluated on that one. It uses the most training data per fit but requires the most fits. The grid of $\lambda$ values is usually spaced logarithmically, for example $\{10^{-3},10^{-2},\dots,10^{2}\}$, to cover several orders of magnitude. A single training/validation split is mostly used for large models that are expensive to fit, as in deep learning, where refitting $K$ times is costly. For fast models like linear regression and modest data sets, cross-validation is standard. The selected $\hat\lambda$ depends on the random assignment of samples to folds, so refitting with a different split can give a slightly different model, even though for a fixed $\lambda$ the objectives in this chapter are convex (Section~\ref{sec:convexity}) and a sensible optimizer reaches the same minimum every time.
 
 \begin{algorithm}[t]
   \caption{$K$-fold cross-validation for choosing $\lambda$}
@@ -548,7 +567,11 @@ Let $\vb_0$ denote the true coefficients and $\hat\vb$ an estimate computed from
 \begin{equation}
   \E\left[(y-\vx^\top\hat\vb)^2\right] = \underbrace{\left(\E[\vx^\top\hat\vb]-\vx^\top\vb_0\right)^2}_{\text{bias}^2} + \underbrace{\E\left[\left(\vx^\top\hat\vb-\E[\vx^\top\hat\vb]\right)^2\right]}_{\text{variance}} + \underbrace{\sigma^2}_{\text{noise}},
 \end{equation}
-where the expectations are over training sets and the new noise $\epsilon$. Averaging over new inputs $\vx$ gives the generalization error. The noise term is intrinsic and cannot be reduced. Regularization trades the other two terms against each other (Figure~\ref{fig:bias_var}): increasing $\lambda$ increases bias, because estimates are shrunk away from $\vb_0$, but decreases variance, because estimates depend less on the particular training set. The optimal $\lambda$ minimizes their sum. Section 2.9 of \citet{esl} covers this in more depth.
+where the expectations are over training sets and the new noise $\epsilon$. Averaging over new inputs $\vx$ gives the generalization error. The noise term is intrinsic and cannot be reduced: noise is by definition the part of $y$ that cannot be predicted. The first two terms, averaged over $\vx$, form the out-of-sample risk that we will meet in Section~\ref{sec:gen_theory}. The same decomposition holds for the coefficients themselves,
+\begin{equation}
+  \E\left[\|\hat\vb-\vb_0\|_2^2\right] = \underbrace{\left\|\E[\hat\vb]-\vb_0\right\|_2^2}_{\text{bias}^2} + \underbrace{\E\left[\|\hat\vb-\E[\hat\vb]\|_2^2\right]}_{\text{variance}} .
+\end{equation}
+The bias measures how far the estimate is from the truth on average, and it can be positive or negative in each coordinate; the variance measures how much the estimate changes from one training set to another. The two differ in whether the deviation is squared inside or outside the expectation. When $\mX^\top\mX$ is invertible, OLS ($\lambda=0$) is unbiased, $\E[\hat\vb]=(\mX^\top\mX)^{-1}\mX^\top\mX\vb_0=\vb_0$, so all of its error is variance. Regularization trades the two terms against each other (Figure~\ref{fig:bias_var}): increasing $\lambda$ increases bias, because estimates are shrunk away from $\vb_0$, but decreases variance, because estimates depend less on the particular training set. The optimal $\lambda$ minimizes their sum. Section 2.9 of \citet{esl} covers this in more depth.
 
 \begin{figure}[t]
   \centering
@@ -569,7 +592,7 @@ Ridge regression follows from a Gaussian prior on each coefficient. If we instea
   \frac{1}{2}\sum_{i=1}^N\left(y_i-\vx_i^\top\vb\right)^2 + \lambda\|\vb\|_1, \qquad \|\vb\|_1=\sum_{j=1}^P|\beta_j|,
   \label{eq:lasso}
 \end{equation}
-with $\lambda=\sigma^2/b$. This is the \emph{lasso}~\citep{tibshirani1996}, or L1-regularized regression. The key property of the lasso is that many coefficients of the solution are exactly zero, which is called \emph{sparsity}. A sparse model uses only a subset of features, which makes it easier to interpret.
+with $\lambda=\sigma^2/b$. This is the \emph{lasso}~\citep{tibshirani1996}, or L1-regularized regression. The key property of the lasso is that many coefficients of the solution are exactly zero, which is called \emph{sparsity}. A sparse model uses only a subset of features, so fitting it performs \emph{variable selection}, which makes the model easier to interpret. Sparsity can also improve prediction when only a few features matter (Section~\ref{sec:gen_theory}), although the lasso does not always predict better than ridge regression. The price is computational: unlike ridge regression, the lasso has no closed-form solution, and we must use an iterative algorithm such as gradient descent (Section~\ref{sec:optimization}) or coordinate descent, which updates one coefficient at a time.
 
 \begin{figure}[t]
   \centering
@@ -603,6 +626,8 @@ where $\hat\beta_{\text{OLS}}\in\R$ is the least-squares estimate. The absolute 
 \end{equation}
 which is called \emph{soft thresholding}. The same argument for ridge gives $\hat\beta_{\text{ridge}}=\hat\beta_{\text{OLS}}/(1+\lambda)$, which shrinks the estimate but never reaches zero. Figure~\ref{fig:objectives} shows the two objectives for several values of $\lambda$, and Figure~\ref{fig:shrinkage} compares the resulting estimates. The intuition is that the gradient of the squared error goes to zero as $\beta$ approaches the OLS estimate, while the gradient of the L1 penalty has constant magnitude $\lambda$. Once $\lambda$ exceeds the gradient of the squared error at zero, the penalty wins and the coefficient stays at zero.
 
+The same picture can be read from the optimality condition $\nabla_\beta\frac{1}{2}(\beta-\hat\beta_{\text{OLS}})^2=-\lambda\,\partial|\beta|$. The left-hand side, $\beta-\hat\beta_{\text{OLS}}$, is a line of slope one that crosses zero at $\hat\beta_{\text{OLS}}$. The right-hand side is a step function, equal to $+\lambda$ for $\beta<0$, $-\lambda$ for $\beta>0$, and the whole interval $[-\lambda,\lambda]$ at $\beta=0$. The solution is where the line meets the step function. For small $\lambda$ they meet at a positive $\beta$ (for $\hat\beta_{\text{OLS}}>0$), shrunk from $\hat\beta_{\text{OLS}}$ by $\lambda$. As $\lambda$ grows, the crossing moves toward zero, and once $\lambda\geq\hat\beta_{\text{OLS}}$ the line passes through the vertical part of the step at $\beta=0$, so the solution is exactly zero. With many features the same argument applies to each coefficient in turn, holding the others fixed, with $\hat\beta_{\text{OLS}}$ replaced by the least-squares coefficient of feature $j$ for the partial residual $\vy-\sum_{k\neq j}\mX_{:k}\beta_k$ and $\lambda$ divided by $\|\mX_{:j}\|_2^2$. This is how coordinate descent algorithms for the lasso work: each update is a soft thresholding step.
+
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.85\linewidth]{objectives_1d.pdf}
@@ -619,7 +644,7 @@ which is called \emph{soft thresholding}. The same argument for ridge gives $\ha
 
 \subsection{Sparse priors}
 
-From the Bayesian viewpoint, L2 regularization corresponds to a Gaussian prior with density proportional to $e^{-\frac{\lambda}{2}\beta^2}$, and L1 regularization to a Laplace prior with density proportional to $e^{-\lambda|\beta|}$. The Laplace density has a sharper peak at zero and heavier tails than the Gaussian (Figure~\ref{fig:sparse_priors}): it favours many coefficients near zero and a few large ones. A more direct encoding of sparsity is the \emph{spike-and-slab} prior~\citep{mitchell1988},
+From the Bayesian viewpoint, L2 regularization corresponds to a Gaussian prior with density proportional to $e^{-\frac{\lambda}{2}\beta^2}$, and L1 regularization to a Laplace prior with density proportional to $e^{-\lambda|\beta|}$. The Laplace density has a sharper peak at zero and heavier tails than the Gaussian (Figure~\ref{fig:sparse_priors}): it favours many coefficients near zero and a few large ones. A Gaussian prior, in contrast, favours coefficients of intermediate size and makes very large ones implausible. Whether the Laplace assumption, a few important features and many unimportant ones, suits a given problem is a modelling choice. A more direct encoding of sparsity is the \emph{spike-and-slab} prior~\citep{mitchell1988},
 \begin{equation}
   \beta_j \sim \pi\,\Normal(0,\varepsilon^2) + (1-\pi)\,\Normal(0,\sigma^2_{\text{slab}}),
 \end{equation}
@@ -646,9 +671,12 @@ What makes a machine learning model interpretable? There is no single answer. Pr
   \item disentangled representations, in which separate latent variables capture separate factors of variation;
   \item being generative, so that the model describes how the data could have arisen.
 \end{itemize}
-When this question was posed to a class, students emphasized understanding how a model makes its predictions, identifying which variables drive a decision, and being able to explain a model in plain language. They also raised the distinction between interpreting predictions and interpreting features, the possibility that the underlying biological system is not itself simple enough to be interpretable, whether a model yields testable hypotheses about the underlying biology, the trustworthiness of predictions, and, for neural networks, visualizing training dynamics and neuron activations. Sparse linear models score well on several of these criteria, which is one reason they remain popular in genomics.
+When this question was posed to a class, students emphasized understanding how a model makes its predictions, identifying which variables drive a decision, and being able to explain a model in plain language. They also raised the distinction between interpreting predictions and interpreting features, the possibility that the underlying biological system is not itself simple enough to be interpretable, whether a model yields testable hypotheses about the underlying biology, the trustworthiness of predictions, and, for neural networks, visualizing training dynamics and neuron activations. A later class emphasized recognizable patterns, linearity, being able to see the effect of each input on the output, shallower models, and the distinction between interpreting the architecture and interpreting the output. Other suggestions were that a model must predict reasonably well before it is worth interpreting, and that a model should be reproducible: refitting it should give the same answer. Another kind of interpretation identifies which training samples contributed most to a prediction, which is direct for nearest-neighbour methods and, for support vector machines, given by the support vectors.
+
+Whether causality matters depends on the use. For predicting drug sensitivity, a causal relationship would suggest new treatments. If high expression of a gene causes resistance to a drug, combining the drug with a second one that reduces that gene's expression or activity might overcome the resistance. Often, though, we only need to predict whether a drug will work, and a feature that is associated with the outcome without causing it, a \emph{biomarker}, is useful as long as the association holds in patients. Sparse linear models score well on several of the criteria above, which is one reason they remain popular in genomics.
 
 \subsection{Generalization theory}
+\label{sec:gen_theory}
 
 Theory makes the benefit of sparsity in high dimensions precise. Let $\vb_0$ be the true coefficients, with $y_i=\vx_i^\top\vb_0+\epsilon_i$. The \emph{out-of-sample risk} (OSR) of an estimate $\hat\vb$ is $\E_{\vx}[(\vx^\top\hat\vb-\vx^\top\vb_0)^2]$, the expected squared difference between estimated and true predictions at a new input. For Gaussian features, the expected OSR of OLS is
 \begin{equation}
@@ -658,7 +686,7 @@ which is small only when $P\ll N$ and diverges as $P$ approaches $N$. For the la
 \begin{equation}
   \text{OSR}_{\text{lasso}} \sim \|\vb_0\|_1^2\sqrt{\frac{\log P}{N}},
 \end{equation}
-which grows only logarithmically in the number of features. The lasso can therefore generalize when $\log P$ is small relative to $N$, provided the true coefficients have small L1 norm, as they do when they are sparse. Figure~\ref{fig:risk_vs_p} compares the two expressions. For small $P$ OLS is better, since it is unbiased, but for large $P$ the lasso is far better.
+which grows only logarithmically in the number of features. The lasso can therefore generalize when $\log P$ is small relative to $N$, provided the true coefficients have small L1 norm, as they do when they are sparse. This holds even when $P>N$, where OLS cannot be fit at all. The result requires technical conditions on the distribution of the features, which we do not state. It gives a useful rule of thumb: there is a wide regime, $N<P$ but $\log P\ll N$, in which least squares fails but sparse regression can still work, while if $\log P$ is comparable to $N$ the bound guarantees nothing. Figure~\ref{fig:risk_vs_p} compares the two expressions. For small $P$ OLS is better, since it is unbiased, but for large $P$ the lasso is far better.
 
 \begin{figure}[t]
   \centering
@@ -680,7 +708,7 @@ Gradient descent repeatedly takes a step in the direction of steepest descent,
 \begin{equation}
   \vb_{\text{new}} = \vb_{\text{current}} - \alpha\nabla_{\vb}L(\vb_{\text{current}}),
 \end{equation}
-where $\alpha>0$ is the step size (or learning rate) and $\vb$ and $\nabla_{\vb}L$ are both $P$-vectors. Where the loss is steep the steps are large, and as the iterates approach a minimum the gradient, and hence the step, shrinks (Figure~\ref{fig:gd}). For a non-convex loss, gradient descent converges to a local minimum that depends on the starting point.
+where $\alpha>0$ is the step size (or learning rate) and $\vb$ and $\nabla_{\vb}L$ are both $P$-vectors. Where the loss is steep the steps are large, and as the iterates approach a minimum the gradient, and hence the step, shrinks (Figure~\ref{fig:gd}). For a non-convex loss, gradient descent converges to a local minimum that depends on the starting point. In one dimension we could simply plot the loss and read off the minimum, but $\vb$ may have $10^4$ entries, one per gene, and a grid search over $10^4$ dimensions is impossible; gradient descent needs only the gradient at the current point. Near the minimum a fixed step size can overshoot, and if $\alpha$ is too large the loss can increase from one step to the next.
 
 \begin{figure}[t]
   \centering
@@ -691,11 +719,11 @@ where $\alpha>0$ is the step size (or learning rate) and $\vb$ and $\nabla_{\vb}
 
 There are many variants of gradient descent. Common ones are
 \begin{itemize}
-  \item \emph{momentum} or \emph{acceleration}, which accumulates a running average of past gradients to move faster along consistent directions;
-  \item \emph{adaptive step sizes}, either by backtracking line search or with per-parameter scaling as in Adagrad and Adam~\citep{kingma2015};
+  \item \emph{momentum} or \emph{acceleration}, which accumulates past gradients in a velocity $\mathbf{v}\in\R^P$, $\mathbf{v}\leftarrow\gamma\mathbf{v}-\alpha\nabla_{\vb}L$ and $\vb\leftarrow\vb+\mathbf{v}$ with $\gamma\in[0,1)$, so that, like a ball rolling downhill, the iterates speed up along directions in which the gradient is consistent;
+  \item \emph{adaptive step sizes}, either by backtracking line search, which halves $\alpha$ repeatedly until a step decreases the loss, or with per-parameter scaling as in Adagrad and Adam~\citep{kingma2015};
   \item \emph{minibatch} or \emph{stochastic} gradient descent, which estimates the gradient from a random subset of samples at each step and requires a schedule for decreasing $\alpha$ to converge (adaptive methods such as Adam are often used instead);
-  \item \emph{Newton's method}, $\vb_{\text{new}}=\vb_{\text{current}}-(\nabla^2_{\vb}L)^{-1}\nabla_{\vb}L$, which uses the Hessian $\nabla^2_{\vb}L\in\R^{P\times P}$ to rescale the gradient. It converges in few iterations but the Hessian is expensive to compute, store and invert when $P$ is large;
-  \item \emph{quasi-Newton methods} such as L-BFGS~\citep{liu1989}, which build a low-rank approximation to the Hessian from successive gradients.
+  \item \emph{Newton's method}, $\vb_{\text{new}}=\vb_{\text{current}}-(\nabla^2_{\vb}L)^{-1}\nabla_{\vb}L$, which uses the Hessian $\nabla^2_{\vb}L\in\R^{P\times P}$ to rescale the gradient. It converges in few iterations but the Hessian is expensive to compute, store and invert when $P$ is large: with $P=10^4$ genes it has $10^8$ entries;
+  \item \emph{quasi-Newton methods} such as L-BFGS~\citep{liu1989}, which build a low-rank approximation to the inverse Hessian from successive gradients, so that no matrix needs to be inverted. For smooth losses L-BFGS is a good default when plain gradient descent is slow.
 \end{itemize}
 
 \subsection{Convexity and subgradients}
@@ -711,7 +739,7 @@ The absolute value $|\beta|$ is convex but not differentiable at zero. Its gradi
 \begin{equation}
   \operatorname{sign}(\beta) = \begin{cases} 1, & \beta>0\\ -1, & \beta<0 \\ 0, & \beta=0 \end{cases}
 \end{equation}
-as the subgradient of $|\beta|$.
+as the subgradient of $|\beta|$, which at $\beta=0$ takes the midpoint of the interval $[-1,1]$.
 
 \begin{figure}[t]
   \centering
@@ -724,11 +752,11 @@ as the subgradient of $|\beta|$.
 \section{Application: elastic net prediction of drug sensitivity}
 %======================================================================
 
-\citet{barretina2012} profiled cell lines in CCLE at several molecular levels, including copy number variation (how many copies of each gene are in the genome, which is often altered in cancer), mutation status (single nucleotide variants, insertions and deletions in known oncogenes) and gene expression from microarrays or RNA-seq (Figure~\ref{fig:ccle_data}). To predict drug sensitivity from these features they used the \emph{elastic net}~\citep{zou2005}, which combines the L1 and L2 penalties,
+\citet{barretina2012} profiled cell lines in CCLE at several molecular levels, including copy number variation (how many copies of each gene are in the genome, which is often altered in cancer), mutation status (single nucleotide variants, insertions and deletions in known oncogenes) and gene expression from microarrays or RNA-seq (Figure~\ref{fig:ccle_data}). Cancer develops as mutations accumulate in the DNA of cells and give them a growth advantage, so DNA-level features are natural predictors. A single nucleotide variant changes one base, which can have a large effect if it alters a key protein. An insertion or deletion (indel) adds or removes a short stretch of sequence, conventionally under 50 bp. A copy number change duplicates or deletes a larger region, in cancer sometimes a whole chromosome arm. Protein abundance can also be measured directly, for example by mass spectrometry or antibody-based arrays. For a linear model these are all feature matrices with one row per cell line, and they can be concatenated column-wise into a single $\mX$. To predict drug sensitivity from these features they used the \emph{elastic net}~\citep{zou2005}, which combines the L1 and L2 penalties,
 \begin{equation}
   \sum_{i=1}^N\left(y_i-\vx_i^\top\vb\right)^2 + \lambda_1\sum_{j=1}^P|\beta_j| + \frac{\lambda_2}{2}\sum_{j=1}^P\beta_j^2 ,
 \end{equation}
-with regularization strengths $\lambda_1,\lambda_2\geq0$. The L1 term gives sparsity. The L2 term stabilizes the solution when features are correlated: the lasso tends to select one feature from a correlated group arbitrarily, while the elastic net tends to spread weight across the group.
+with regularization strengths $\lambda_1,\lambda_2\geq0$. The L1 term gives sparsity. The L2 term stabilizes the solution when features are correlated: the lasso tends to select one feature from a correlated group arbitrarily, while the elastic net tends to spread weight across the group. For interpretation this makes the elastic net the safer choice, since we are less likely to over-trust the one gene the lasso happened to pick. A separate model is fit for each drug.
 
 \begin{figure}[t]
   \centering
@@ -737,12 +765,14 @@ with regularization strengths $\lambda_1,\lambda_2\geq0$. The L1 term gives spar
   \label{fig:ccle_data}
 \end{figure}
 
-Figure~\ref{fig:elastic_net} shows the elastic net fit for PD-0325901, an inhibitor of MEK, a kinase in the MAPK signalling pathway. The columns are cell lines sorted by activity area, the response $\vy$, from resistant (left) to sensitive (right). The rows are the selected features, a subset of the columns of $\mX$, shown transposed. The bars on the left are the fitted coefficients $\hat\vb$, and the number after each feature name is how often the feature was selected across bootstrap resamples of the data. Features with large coefficients show visible trends across the heatmap: their values differ between the resistant and the sensitive ends. The selected features include mutations in \textit{NRAS}, \textit{KRAS} and \textit{BRAF}, genes in the MAPK pathway that the drug targets.
+Figure~\ref{fig:elastic_net} shows the elastic net fit for PD-0325901, an inhibitor of MEK, a kinase in the MAPK signalling pathway. A kinase is an enzyme that adds phosphate groups to other proteins, which usually changes how active they are. MEK stands for mitogen-activated protein kinase kinase: it phosphorylates, and thereby activates, another kinase. Such cascades, in which one protein phosphorylates the next, carry the signals by which a cell decides whether to proliferate or to undergo apoptosis (programmed cell death), and mutations that switch them on inappropriately drive many cancers.
+
+The columns of the heatmap are cell lines sorted by activity area, the response $\vy$, shown at the bottom on an inverted axis: the most sensitive lines, with the largest activity area, are on the left and the most resistant on the right. The rows are the selected features, a subset of the columns of $\mX$, shown transposed. Expression features (Expr.) are continuous; mutation features (Mut.) are binary, either present (dark red) or absent. The bars on the left are the fitted coefficients $\hat\vb$, and the number after each feature name is how often the feature was selected across bootstrap resamples of the data. Features with large coefficients show visible trends across the heatmap: their values differ between the sensitive and the resistant ends. High expression of \textit{SPRY2}, at the bottom, is more common among the sensitive lines on the left, while high expression of \textit{ACSS3}, at the top, is more common among the resistant lines on the right. The selected features include mutations in \textit{NRAS}, \textit{KRAS} and \textit{BRAF}, genes upstream of MEK in the MAPK pathway, and the \textit{NRAS} and \textit{KRAS} mutations are concentrated among the sensitive lines, consistent with tumours driven by this pathway depending on MEK. In the figure, features associated with sensitivity have negative weights, so the plotted weights have the opposite sign to activity area. As with any regression on observational data, these associations need not be causal.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.9\linewidth]{slides/ccle_elastic_net_pd0325901.png}
-  \caption{Elastic net model of sensitivity to the MEK inhibitor PD-0325901. Bottom: activity area $\vy$ for each cell line, sorted from resistant (left) to sensitive (right). Heatmap: standardized values of the selected expression (Expr.) and mutation (Mut.) features in each cell line. Left: fitted coefficients $\hat\vb$. Reproduced from \citet{barretina2012}.}
+  \caption{Elastic net model of sensitivity to the MEK inhibitor PD-0325901. Bottom: activity area $\vy$ for each cell line (inverted axis), sorted from sensitive (left, large activity area) to resistant (right). Heatmap: standardized values of the selected expression (Expr.) and mutation (Mut.) features in each cell line. Left: fitted coefficients $\hat\vb$. Reproduced from \citet{barretina2012}.}
   \label{fig:elastic_net}
 \end{figure}
 
@@ -753,7 +783,7 @@ Figure~\ref{fig:elastic_net} shows the elastic net fit for PD-0325901, an inhibi
 
 \subsection{Predicting a binary outcome}
 
-Many prediction problems have a binary outcome. Oncotype DX is a gene expression test used to guide treatment of estrogen receptor positive (ER+) breast cancer~\citep{paik2004}. It was developed using tumour expression from approximately 700 patients in an earlier clinical trial of tamoxifen, with the outcome being recurrence or metastasis within 10 years (Figure~\ref{fig:data_matrices}b). Patients predicted to be at high risk are offered chemotherapy, and the test is now part of the standard of care for ER+ breast cancer.
+Many prediction problems have a binary outcome. Oncotype DX is a gene expression test used to guide treatment of estrogen receptor positive (ER+) breast cancer~\citep{paik2004}. It was developed using tumour expression from approximately 700 patients in an earlier clinical trial of tamoxifen, with the outcome being recurrence or metastasis within 10 years (Figure~\ref{fig:data_matrices}b). Tamoxifen blocks the estrogen receptor, which drives the growth of many breast tumours, and works well for most ER+ patients, but in some the cancer returns years after surgery, either locally or as a metastasis elsewhere in the body, which is much harder to treat. The data were possible because tumour tissue removed at surgery had been archived, and the patients had been followed up for years afterwards. Measuring expression in the archived tissue later linked each tumour's profile to whether the disease returned. Patients predicted to be at high risk are offered chemotherapy, which has serious side effects, while patients at low risk can avoid it. The test is now part of the standard of care for ER+ breast cancer.
 
 Returning to the cell line example, we might also binarize the response: let $y_i=1$ if cell line $i$ is sensitive to the drug and $y_i=0$ otherwise.
 
@@ -764,11 +794,15 @@ Logistic regression models the probability that $y_i=1$ as
   p(y_i=1\mid\vx_i,\vb) = \sigma(\vx_i^\top\vb) =: p_i, \qquad \sigma(g) = \frac{1}{1+e^{-g}},
   \label{eq:logistic}
 \end{equation}
-where $\sigma:\R\to(0,1)$ is the logistic sigmoid function (Figure~\ref{fig:sigmoid}) and $p_i\in(0,1)$. An intercept can be included by appending a one to each input, $\vx_i\leftarrow[\vx_i^\top, 1]^\top$. Equivalently,
+where $\sigma:\R\to(0,1)$ is the logistic sigmoid function (Figure~\ref{fig:sigmoid}) and $p_i\in(0,1)$. Despite its name, logistic regression is a classification method; the name comes from statistics, where any model of a response given covariates is a regression. Unlike in linear regression, we cannot remove the intercept by centering $\vy$, since $y_i\in\{0,1\}$. Instead we augment the inputs: writing $\tilde\vx_i\in\R^{P-1}$ for the original features, $\tilde\vb\in\R^{P-1}$ for their coefficients and $\mu$ for the intercept, we set
+\begin{equation}
+  \vx_i = \begin{bmatrix}\tilde\vx_i\\ 1\end{bmatrix}, \qquad \vb = \begin{bmatrix}\tilde\vb\\ \mu\end{bmatrix}, \qquad \vx_i^\top\vb = \tilde\vx_i^\top\tilde\vb + \mu ,
+\end{equation}
+which is how most implementations handle the intercept. Equivalently,
 \begin{equation}
   y_i\mid\vx_i,\vb \sim \text{Bernoulli}(p_i), \qquad p(y_i\mid\vx_i,\vb) = p_i^{y_i}(1-p_i)^{1-y_i},
 \end{equation}
-independently across samples. The compact form of the Bernoulli probability gives $p_i^1(1-p_i)^0=p_i$ when $y_i=1$ and $p_i^0(1-p_i)^1=1-p_i$ when $y_i=0$. The linear predictor $g_i=\vx_i^\top\vb$ is the log odds, $\log\frac{p_i}{1-p_i}$. The set of inputs with $\vx^\top\vb=0$, where $p=0.5$, is a hyperplane called the \emph{decision boundary}, and lines of constant probability are parallel to it (Figure~\ref{fig:logistic_2d}).
+independently across samples. A Bernoulli variable is a biased coin flip, here with probability $p_i$ of heads. The compact form of the Bernoulli probability gives $p_i^1(1-p_i)^0=p_i$ when $y_i=1$ and $p_i^0(1-p_i)^1=1-p_i$ when $y_i=0$. The linear predictor $g_i=\vx_i^\top\vb$ is the log odds, $\log\frac{p_i}{1-p_i}$. The set of inputs with $\vx^\top\vb=0$, where $p=0.5$, is a hyperplane called the \emph{decision boundary}, and lines of constant probability are parallel to it (Figure~\ref{fig:logistic_2d}).
 
 \begin{figure}[t]
   \centering
@@ -811,7 +845,7 @@ and the log likelihood is
 \begin{equation}
   \log p(\vy\mid\mX,\vb) = \sum_{i=1}^N \ell_i, \qquad \ell_i = y_i\log p_i + (1-y_i)\log(1-p_i).
 \end{equation}
-The loss $-\log p(\vy\mid\mX,\vb)=-\sum_i\ell_i$ is called the \emph{binary cross-entropy}. Unlike linear regression, setting its gradient to zero does not give a closed-form solution, so we minimize it numerically, which requires the gradient $\nabla_{\vb}\sum_i\ell_i=\sum_i\nabla_{\vb}\ell_i$.
+The loss $-\log p(\vy\mid\mX,\vb)=-\sum_i\ell_i$ is called the \emph{binary cross-entropy}. It is the standard loss for binary classification throughout deep learning. Deep learning libraries implement it as a function of the linear predictor $g_i=\vx_i^\top\vb$ (the \emph{logits}) rather than of $p_i$, because computing $\log p_i$ after $p_i=\sigma(g_i)$ loses precision when $p_i$ is very close to 0 or 1. Unlike linear regression, setting its gradient to zero does not give a closed-form solution, so we minimize it numerically, which requires the gradient $\nabla_{\vb}\sum_i\ell_i=\sum_i\nabla_{\vb}\ell_i$.
 
 \subsection{Calculating the gradient}
 
@@ -819,7 +853,7 @@ The computation of $\ell_i$ from $\vx_i$ and $\vb$ can be written as a chain of 
 \begin{equation}
   g = \vx_i^\top\vb, \qquad p = \sigma(g), \qquad \ell = y\log p+(1-y)\log(1-p),
 \end{equation}
-where we drop the subscript $i$ on $g$, $p$, $y$ and $\ell$. Evaluating these steps in order is the \emph{forward pass}. The chain rule states that for a composition $x\to y\to z$, $\frac{\partial z}{\partial x}=\frac{\partial z}{\partial y}\frac{\partial y}{\partial x}$. Applying it to the computational graph, starting from the output, is the \emph{backward pass} or \emph{backpropagation},
+where we drop the subscript $i$ on $g$, $p$, $y$ and $\ell$. Evaluating these steps in order is the \emph{forward pass}. The chain rule states that for a composition $x\to y\to z$, $\frac{\partial z}{\partial x}=\frac{\partial z}{\partial y}\frac{\partial y}{\partial x}$: if we change $x$ slightly, $y$ changes by $\frac{\partial y}{\partial x}$ per unit change in $x$, and $z$ changes by $\frac{\partial z}{\partial y}$ per unit change in $y$. Applying it to the computational graph, starting from the output, is the \emph{backward pass} or \emph{backpropagation},
 \begin{equation}
   \frac{\partial\ell}{\partial\vb} = \frac{\partial\ell}{\partial p}\frac{\partial p}{\partial g}\frac{\partial g}{\partial\vb}.
 \end{equation}
@@ -863,7 +897,7 @@ Thresholding the predicted probabilities, for example at $0.5$, gives predicted 
   \text{FPR} = \frac{\text{FP}}{\text{FP}+\text{TN}}, \qquad
   \text{precision} = \frac{\text{TP}}{\text{FP}+\text{TP}} ,
 \end{gather}
-where the true positive rate (TPR) is also called \emph{sensitivity} or \emph{recall}, and the false positive rate (FPR) is one minus the \emph{specificity}.
+where the true positive rate (TPR) is also called \emph{sensitivity} or \emph{recall}, and the false positive rate (FPR) is one minus the \emph{specificity}. In the Oncotype DX example, the TPR is the proportion of patients whose cancer recurred that the test flagged as high risk, the FPR is the proportion of patients without recurrence who were flagged, and the precision is the proportion of flagged patients whose cancer did recur. Accuracy is easy to interpret but misleading under \emph{class imbalance}: if only 1\% of patients had a recurrence, predicting ``no recurrence'' for everyone would have 99\% accuracy without using any information from the data.
 
 \begin{table}[t]
   \centering
@@ -881,7 +915,7 @@ where the true positive rate (TPR) is also called \emph{sensitivity} or \emph{re
   \end{tabular}
 \end{table}
 
-These metrics depend on the threshold. Varying the threshold from high to low traces out the \emph{receiver operating characteristic} (ROC) curve of TPR against FPR, and the \emph{precision-recall} (PR) curve of precision against recall (Figure~\ref{fig:roc_pr}). A random classifier has a diagonal ROC curve and a flat PR curve at the proportion of positives. A better classifier has an ROC curve toward the top left and a PR curve toward the top right. The areas under these curves, AUROC and AUPR, summarize performance across thresholds. AUROC is the probability that a randomly chosen positive is ranked above a randomly chosen negative.
+These metrics depend on the threshold, and $0.5$ is not the only sensible choice: a threshold of $0.8$ or $0.9$ calls fewer samples positive, which lowers both the TPR and the FPR. Varying the threshold from high to low traces out the \emph{receiver operating characteristic} (ROC) curve of TPR against FPR, and the \emph{precision-recall} (PR) curve of precision against recall (Figure~\ref{fig:roc_pr}). A random classifier has a diagonal ROC curve and a flat PR curve at the proportion of positives. A better classifier has an ROC curve toward the top left and a PR curve toward the top right. The random-guessing PR curve is flat because a classifier that calls samples positive at random is right about each of them with probability equal to the proportion of positives, whatever its recall. The areas under these curves, AUROC and AUPR, summarize performance across thresholds; an AUROC of 1 is perfect and 0.5 is random. AUROC is the probability that a randomly chosen positive is ranked above a randomly chosen negative. AUPR is usually computed as the \emph{average precision}, the mean of the precision at each threshold weighted by the increase in recall. We write AUROC rather than the common ``AUC'', which does not say which curve the area is under. The name ``receiver operating characteristic'' comes from the analysis of radar signals and has no special meaning here.
 
 \begin{figure}[t]
   \centering
@@ -892,11 +926,12 @@ These metrics depend on the threshold. Varying the threshold from high to low tr
 
 Some practical points:
 \begin{itemize}
-  \item These metrics should usually be assessed on test data.
+  \item These metrics should usually be assessed on test data. On training data an overfit model can look very good.
+  \item Estimates from modest test sets are noisy, so a small difference in AUROC between two models may not be meaningful. With cross-validation, the variation of a metric across folds gives a rough idea of this noise. Formal tests for differences in AUROC exist but are not routinely used.
   \item AUROC and AUPR depend only on the ranking of predictions, like the Spearman correlation, so they ignore errors such as getting the overall level of the probabilities wrong, which accuracy does not.
-  \item With high class imbalance AUROC can look good even when most positive predictions are false; AUPR is then more informative.
-  \item The full ROC or PR curve can be valuable, for example in applications where only a very low FPR is acceptable.
-  \item Some prediction problems are much harder or noisier than others, so there is no universal threshold for a ``good'' AUROC.
+  \item With high class imbalance AUROC can look good even when most positive predictions are false; AUPR is then more informative. Imbalance of 100 negatives per positive or more is common in biology.
+  \item The full ROC or PR curve can be valuable, because which part of it matters depends on the relative costs of false positives and false negatives. A screening test whose positives go on to a second, more invasive test should have high recall, since missing a cancer is far worse than an unnecessary follow-up. A model that nominates genes for months of experimental follow-up should have a very low FPR, or high precision, since each false positive wastes that effort.
+  \item Some prediction problems are much harder or noisier than others, so there is no universal threshold for a ``good'' AUROC. Diagnosing whether a tissue sample is cancerous is usually easier than predicting whether a cancer will recur within 10 years, which depends on events that have not happened yet. Biological labels are also often noisy, in both training and test data, which caps the performance any model can achieve.
 \end{itemize}
 
 %======================================================================
@@ -905,7 +940,7 @@ Some practical points:
 
 \subsection{\texorpdfstring{Predicting one of $D$ classes}{Predicting one of D classes}}
 
-Breast cancers can be classified into intrinsic molecular subtypes: luminal A, luminal B, HER2-enriched, basal-like and normal-like. The subtypes were discovered by clustering tumour expression profiles (Figure~\ref{fig:pam50}a) and differ in prognosis (Figure~\ref{fig:pam50}b). PAM50 (Prediction Analysis of Microarray using 50 genes) is a classifier that assigns a tumour to one of these subtypes from the expression of 50 genes, trained on 189 tumour samples from several hospitals~\citep{parker2009}. Predicting one of several classes is a multiclass classification problem.
+Breast cancers can be classified into intrinsic molecular subtypes: luminal A, luminal B, HER2-enriched, basal-like and normal-like. The subtypes were discovered by clustering tumour expression profiles (Figure~\ref{fig:pam50}a), which we will study in a later chapter, and differ in prognosis (Figure~\ref{fig:pam50}b). The HER2-enriched subtype is named after the gene that is highly active in it. Figure~\ref{fig:pam50}b is a \emph{Kaplan-Meier} curve, which estimates for each group the proportion of patients still free of relapse at each time after surgery. Each downward step is a patient who relapsed or died; small groups have large steps because each event is a large fraction of the group. Tick marks are \emph{censored} patients, who left the study, for example through loss to follow-up, without an event, so we know only that they were relapse-free until then. PAM50 (Prediction Analysis of Microarray using 50 genes) is a classifier that assigns a tumour to one of these subtypes from the expression of 50 genes, trained on 189 tumour samples from several hospitals~\citep{parker2009}. Predicting one of several classes is a multiclass classification problem.
 
 \begin{figure}[t]
   \centering
@@ -917,7 +952,7 @@ Breast cancers can be classified into intrinsic molecular subtypes: luminal A, l
     \includegraphics[width=\linewidth]{slides/pam50_survival.png}
     \caption{}
   \end{subfigure}
-  \caption{Breast cancer intrinsic subtypes. (a) Hierarchical clustering of tumour gene expression profiles (columns) reveals the subtypes. (b) Relapse-free survival of ER-negative patients differs between subtypes. Reproduced from \citet{parker2009}.}
+  \caption{Breast cancer intrinsic subtypes. (a) Hierarchical clustering of tumour gene expression profiles (columns) reveals the subtypes. (b) Kaplan-Meier curves of relapse-free survival of ER-negative patients differ between subtypes. Reproduced from \citet{parker2009}.}
   \label{fig:pam50}
 \end{figure}
 
@@ -927,32 +962,33 @@ Let $D$ be the number of classes and $y_i\in\{1,\dots,D\}$ the class of sample $
 \begin{equation}
   p_{id} = s_d(\vg_i) = \frac{e^{g_{id}}}{\sum_{d'=1}^D e^{g_{id'}}},
 \end{equation}
-which satisfies $p_{id}\geq 0$ and $\sum_d p_{id}=1$. The model is
+which satisfies $p_{id}\geq 0$ and $\sum_d p_{id}=1$. The entries of $\vg_i$ are called \emph{logits}; they can be any real numbers. Exponentiating makes them positive and dividing by their sum makes them sum to one, so softmax maps any vector in $\R^D$ to a probability vector. The same construction is the output layer of neural network classifiers. The model is
 \begin{equation}
   y_i\mid\vx_i,\vb \sim \text{Categorical}(\vp_i), \qquad p(y_i\mid\vx_i,\vb) = \prod_{d=1}^D p_{id}^{\ind[y_i=d]},
 \end{equation}
 where $\ind[\cdot]$ is the indicator function, and the log likelihood of one sample is
 \begin{equation}
-  \ell_i = \log p(y_i\mid\vx_i,\vb) = \sum_{d=1}^D\ind[y_i=d]\log p_{id}.
+  \ell_i = \log p(y_i\mid\vx_i,\vb) = \sum_{d=1}^D\ind[y_i=d]\log p_{id} = \log p_{i y_i}.
 \end{equation}
-The loss $-\sum_i\ell_i$ is the \emph{cross-entropy loss}. Binary logistic regression is the case $D=2$, with one column of $\vb$ fixed to zero. The gradient follows from the same chain-rule argument as before: $\partial\ell_i/\partial g_{id}=\ind[y_i=d]-p_{id}$, so the gradient of the loss with respect to the $d$-th column of $\vb$ is $\sum_i(p_{id}-\ind[y_i=d])\,\vx_i$.
+Only the term for the true class survives, so $-\ell_i$ is the negative log of the probability the model assigns to the correct class. The loss $-\sum_i\ell_i$ is the \emph{cross-entropy loss}, probably the most widely used loss in deep learning. Binary logistic regression is the case $D=2$, with one column of $\vb$ fixed to zero. The gradient follows from the same chain-rule argument as before: $\partial\ell_i/\partial g_{id}=\ind[y_i=d]-p_{id}$, so the gradient of the loss with respect to the $d$-th column of $\vb$ is $\sum_i(p_{id}-\ind[y_i=d])\,\vx_i$.
 
 \subsection{Assessing multiclass classification}
 
 Several metrics extend to the multiclass case.
 \begin{itemize}
   \item \emph{Accuracy} (or top-1 accuracy) is how often the most probable class is the true class.
-  \item \emph{Top-$k$ accuracy} is how often the true class is among the $k$ most probable classes.
-  \item Other metrics, such as AUROC, are computed \emph{one-vs-rest} (OvR): each class in turn is treated as positive and the remaining classes as negative.
+  \item \emph{Top-$k$ accuracy} is how often the true class is among the $k$ most probable classes. With many classes, say 1000, the most probable class may rarely be correct even for a useful model, and top-5 accuracy is a less stringent summary.
+  \item Other metrics, such as AUROC, are computed \emph{one-vs-rest} (OvR): each class in turn is treated as positive and the remaining classes as negative. This collapses the $D\times D$ confusion matrix into $D$ binary $2\times 2$ tables, one per class.
 \end{itemize}
-One-vs-rest metrics must be combined across classes. \emph{Micro averaging} pools the counts (TP, FP, FN) across classes and then computes the metric. It answers how well we do on the average sample, and it is dominated by the most common classes. \emph{Macro averaging} computes the metric for each class and then averages. It answers how well we do on the average class. Standard libraries, for example \texttt{roc\_auc\_score} in scikit-learn with \texttt{multi\_class="ovr"}, provide these options through an \texttt{average} argument.
+One-vs-rest metrics must be combined across classes. \emph{Micro averaging} pools the counts (TP, FP, FN) across classes and then computes the metric. It answers how well we do on the average sample, and it is dominated by the most common classes. \emph{Macro averaging} computes the metric for each class and then averages. It answers how well we do on the average class, and gives rare classes, which may be the ones we care about, as much weight as common ones. Neither is correct in general; the choice depends on the application. Standard libraries, for example \texttt{roc\_auc\_score} in scikit-learn with \texttt{multi\_class="ovr"}, provide these options through an \texttt{average} argument.
 
 %======================================================================
 \section{Summary}
 %======================================================================
 
 \begin{itemize}
-  \item The central dogma: DNA is transcribed to RNA, which is translated to protein. Gene expression is the amount of RNA for each gene in a sample, a proxy for protein abundance. RNA-seq measures it by reverse transcribing RNA to DNA, sequencing, aligning reads to the genome and counting reads per gene.
+  \item The central dogma: DNA is transcribed to RNA, which is translated to protein. Gene expression is the amount of RNA for each gene in a sample, a proxy for protein abundance. RNA-seq measures it by reverse transcribing RNA to DNA, sequencing, aligning reads to the genome (or transcriptome) and counting reads per gene.
+  \item Precision medicine aims to choose treatments for groups of patients from many molecular features of their tumours. Cancer cell lines, profiled by RNA-seq and screened against many drugs, are a model system that provides training data for such predictions.
   \item Linear regression predicts a continuous outcome, such as drug sensitivity, from multiple features, such as gene expression. The maximum likelihood estimate under Gaussian noise is the least-squares solution $(\mX^\top\mX)^{-1}\mX^\top\vy$.
   \item Regularization is needed when $P>N$ or features are correlated. A Gaussian prior gives ridge (L2) regression; a Laplace prior gives the lasso (L1), whose solutions are sparse. Hyperparameters are chosen by cross-validation, which balances overfitting and underfitting, or equivalently bias and variance.
   \item Losses without closed-form minimizers are optimized by gradient descent and its variants; convex losses have no spurious local minima.
@@ -967,6 +1003,7 @@ One-vs-rest metrics must be combined across classes. \emph{Micro averaging} pool
   \item Derive the MAP estimate~\eqref{eq:ridge} from the log posterior~\eqref{eq:logpost}, and show that the posterior over $\vb$ is Gaussian with covariance $\sigma^2(\mX^\top\mX+\lambda\mI)^{-1}$.
   \item Show that, for the least-squares fit with an intercept, $R^2=1-\text{SS}/\text{TSS}$ equals the squared Pearson correlation between $\vy$ and $\hat\vy$.
   \item Show that for an orthonormal design, $\mX^\top\mX=\mI$, the lasso solution is obtained by soft thresholding each component of $\hat\vb_{\text{OLS}}$.
+  \item Derive the coordinate descent update for the lasso: minimize~\eqref{eq:lasso} over $\beta_j$ with all other coefficients fixed, and show that the minimizer is a soft thresholding of the least-squares coefficient of $\mX_{:j}$ for the partial residual.
   \item Compute the Hessian of the binary cross-entropy loss and show that it is positive semi-definite, so the loss is convex.
   \item Implement five-fold cross-validation for ridge regression and apply it to predict the sensitivity of cancer cell lines to one drug from gene expression.
 \end{enumerate}
