@@ -251,8 +251,10 @@ def fig_shrinkage():
 
 def fig_constraint_geometry():
     """Elliptical least-squares contours touching an L2 ball and an L1 ball."""
-    Q = np.array([[1.0, 0.45], [0.45, 0.6]])
-    c = np.array([1.2, 2.2])
+    # Q and c are chosen so the lasso solution is the corner (0, 1): at that vertex the
+    # descent direction -Q(beta - c) lies in the normal cone {d : d_2 >= |d_1|}.
+    Q = np.array([[1.0, 0.6], [0.6, 1.0]])
+    c = np.array([1.2, 2.6])
     sq = lambda B: np.einsum("ni,ij,nj->n", B - c, Q, B - c)
     t = np.linspace(0, 2 * np.pi, 4001)
     balls = {"ridge: $\\|\\beta\\|_2\\leq\\gamma$": np.c_[np.cos(t), np.sin(t)],
@@ -264,6 +266,8 @@ def fig_constraint_geometry():
     for name, bd in balls.items():
         v = sq(bd)
         k = np.argmin(v)
+        if "lasso" in name:
+            assert np.allclose(bd[k], [0, 1], atol=1e-6), bd[k]
         opts.append(pd.DataFrame({"x": [bd[k, 0]], "y": [bd[k, 1]], "panel": [name]}))
         regions.append(pd.DataFrame({"x": bd[:, 0], "y": bd[:, 1], "panel": name}))
         cc = contour_paths(b1, b2, zz, v[k] * np.array([0.15, 0.5, 1.0]))
