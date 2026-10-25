@@ -574,7 +574,7 @@ where the back-pointer $\psi_t(j)$ records the best predecessor. The last state 
 
 %======================================================================
 \section{Learning: expectation maximization}
-\label{sec:em}
+\label{sec:em-06}
 %======================================================================
 
 \subsection{The EM algorithm in general}
@@ -586,7 +586,7 @@ Chapter 5 introduced expectation maximization for mixture models. Here we derive
 The log of a sum is hard to maximize directly. Introduce any distribution $q(X)$ over the latent variables that is positive wherever $P(Y,X\mid\vtheta)$ is. Multiplying and dividing by $q(X)$, and using Jensen's inequality for the concave $\log$, $\log\E_q[Z]\geq\E_q[\log Z]$,
 \begin{equation}
   \log P(Y\mid\vtheta) = \log\sum_X q(X)\,\frac{P(Y,X\mid\vtheta)}{q(X)} \;\geq\; \sum_X q(X)\log\frac{P(Y,X\mid\vtheta)}{q(X)} \;=:\; \mathcal{F}(q,\vtheta).
-  \label{eq:elbo}
+  \label{eq:elbo-06}
 \end{equation}
 $\mathcal{F}$ is a lower bound on the log likelihood for every $q$, often called the evidence lower bound. Writing $P(Y,X\mid\vtheta)=P(X\mid Y,\vtheta)\,P(Y\mid\vtheta)$ shows how loose the bound is,
 \begin{equation}
@@ -595,7 +595,7 @@ $\mathcal{F}$ is a lower bound on the log likelihood for every $q$, often called
 where $\KL$ is the Kullback-Leibler divergence, which is non-negative and zero only when its two arguments are equal. EM maximizes $\mathcal{F}$ by coordinate ascent, alternating between $q$ and $\vtheta$~\citep{dempster1977,neal1998}.
 \begin{itemize}
   \item \textbf{E step}: maximize $\mathcal{F}$ over $q$ with $\vtheta$ fixed. Since only the KL term depends on $q$, the optimum is the posterior, $q(X)=P(X\mid Y,\vtheta^{\text{old}})$, at which the bound is tight, $\mathcal{F}=\log P(Y\mid\vtheta^{\text{old}})$.
-  \item \textbf{M step}: maximize $\mathcal{F}$ over $\vtheta$ with $q$ fixed. Splitting the logarithm in~\eqref{eq:elbo}, $\mathcal{F}=\sum_X q(X)\log P(Y,X\mid\vtheta)-\sum_X q(X)\log q(X)$, and the second term (the entropy of $q$) does not depend on $\vtheta$, so
+  \item \textbf{M step}: maximize $\mathcal{F}$ over $\vtheta$ with $q$ fixed. Splitting the logarithm in~\eqref{eq:elbo-06}, $\mathcal{F}=\sum_X q(X)\log P(Y,X\mid\vtheta)-\sum_X q(X)\log q(X)$, and the second term (the entropy of $q$) does not depend on $\vtheta$, so
   \begin{equation}
     \vtheta^{\text{new}} = \argmax_{\vtheta}\;\E_{q}\left[\log P(Y,X\mid\vtheta)\right].
     \label{eq:mstep}

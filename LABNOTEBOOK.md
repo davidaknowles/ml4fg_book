@@ -30,3 +30,30 @@ Converting the ML4FG (machine learning for functional genomics) lecture slides i
 - Added beyond the slides: closed-form logistic and softmax gradients, soft-thresholding derivation, empirical Bayes marginal likelihood, ridge posterior covariance, exercises.
 - Computed figures use simulated data with fixed seeds. The bias-variance figure is exact for a fixed design ($N=80$, $P=60$), not Monte Carlo. The lasso risk curve shows the Greenshtein-Ritov rate without constants.
 - Open items: permissions for third-party figures (see `chapter01/README.md`); source of the primary-culture figure; check Oncotype DX cohort description and the bootstrap-frequency interpretation of the CCLE elastic-net figure.
+
+## Chapters 2-14 and the full book
+
+- Each chapter was written by an agent following `tools/CHAPTER_BRIEF.md`, from the 2026 deck (content and order), the 2023 deck (fuller derivations, topics 2-11) and the matching Fall 2025 lectures in `captions/`. Topics 5 (10/10 lecture uncaptioned) and 13 rely mostly on the slides. Each `chapterNN/README.md` lists figure provenance and permissions; each agent's report of facts to check is summarized in the chapter README or PROGRESS.md.
+- Chapter 1 was later revised from the 2026 deck (new precision-medicine section) and the lectures. The CCLE elastic-net heatmap runs sensitive (left) to resistant (right): its activity-area axis is inverted, and the ink on the 2024 and 2026 slides labels it the wrong way round.
+- The full book is `book/main.tex`, built with `book/build.sh`. Each `book/chNN.tex` wrapper sets that chapter's graphics and input paths, wraps it in a TeX group so its `\providecommand` macros stay local (e.g. `\va` is alpha in chapter 2 and **a** elsewhere), and adds a per-chapter bibliography via chapterbib. Labels must be unique across chapters; duplicates were renamed with a `-NN` suffix in the later chapter.
+- Standalone chapter builds set `\setcounter{chapter}{N-1}` in `main.tex`; the book build does not use those wrappers.
+
+## Slide extraction notes (additions)
+
+- `render_slides.py` does not draw cropped pictures (`srcRect`), tables, autoshapes/connectors or some grouped shapes; node-link diagrams and tables must be read from `slide_text.py` or the slide XML and redrawn. Some 2026 decks (e.g. topic 14) have no ink and use autoshapes throughout.
+- PNGs in a slide's rels can be ink fallback images, not figures.
+- EMF-wrapped PDFs carry a CropBox for the pasted panel: rasterize with `pdftoppm -cropbox` (or `pdftocairo -png -transp -cropbox` for white-on-transparent equation images) so whole journal pages are not shipped. ImageMagick here cannot read PDF or TIFF; use `pdftoppm`, and `sips -s format png` or PIL for TIFF.
+- Speaker notes in some decks (topic 14) are auto-generated and unreliable.
+
+## LaTeX notes
+
+- Use `[!htbp]` floats; with many `[t]` floats one large float pushes all figures to the chapter end.
+- `\protect` fragile commands such as `\overrightarrow` in captions; brace `\foreach` bodies that are macros expanding to `\draw`.
+- In bibtex, "and others" must be the last author or abbrvnat prints it as a name.
+- Generated tables must be complete `tabular` environments; `\input` of row fragments fails when a row starts with `\multicolumn`. Chapter 9 writes numbers quoted in the text to a macro file from its figure script, which keeps text and figures in sync.
+
+## Reusable code
+
+- `chapter04/scripts/attribution.py`: attribution methods (ISM, gradients, DeepLIFT, integrated gradients).
+- `chapter06/scripts/hmm.py`: scaled forward-backward, Viterbi, Baum-Welch.
+- `chapter12/scripts/make_figures.py` (`mosaic_genotypes`) and `chapter11/scripts/make_figures.py`: genotype simulators with realistic block LD (founders built from coalescent trees).

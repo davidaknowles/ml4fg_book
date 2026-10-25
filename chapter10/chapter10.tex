@@ -473,7 +473,7 @@ The Dirichlet is the \emph{conjugate prior} of the discrete distribution: if $\v
 
 \subsection{Graphical model}
 
-Figure~\ref{fig:graphical_model} shows the model as a directed graphical model, a notation we used for hidden Markov models in Chapter 6. Each node is a random variable, an edge means that the distribution of the child depends on the parent, and shaded nodes are observed. The rectangles are \emph{plates}: the variables inside a plate are repeated the number of times shown in its corner, like the body of a for loop, and plates can be nested like nested loops. There is one $z_{nm}$ for every read and every isoform, $N\times M$ in total, and one observed read $r_n$ per read. Each $z_{nm}$ depends on $\vtheta$, and each $r_n$ depends on $\vz_n$.
+Figure~\ref{fig:graphical_model-10} shows the model as a directed graphical model, a notation we used for hidden Markov models in Chapter 6. Each node is a random variable, an edge means that the distribution of the child depends on the parent, and shaded nodes are observed. The rectangles are \emph{plates}: the variables inside a plate are repeated the number of times shown in its corner, like the body of a for loop, and plates can be nested like nested loops. There is one $z_{nm}$ for every read and every isoform, $N\times M$ in total, and one observed read $r_n$ per read. Each $z_{nm}$ depends on $\vtheta$, and each $r_n$ depends on $\vz_n$.
 
 \begin{figure}[!htbp]
   \centering
@@ -490,14 +490,14 @@ Figure~\ref{fig:graphical_model} shows the model as a directed graphical model, 
     \node[draw, rounded corners, fit=(pm)(r), inner sep=0.3cm, label={[anchor=south east]south east:$N$}] {};
   \end{tikzpicture}
   \caption{Graphical model for isoform quantification, adapted from \citet{hensman2015}. Plates denote repetition over isoforms $m$ and reads $n$; the shaded node is observed. The quantity of interest is the posterior $p(\vtheta\mid R)$.}
-  \label{fig:graphical_model}
+  \label{fig:graphical_model-10}
 \end{figure}
 
 What we would like is the posterior $p(\vtheta\mid R)$. Obtaining it requires summing the joint~\eqref{eq:joint} over the latent assignments $\mZ$. The sum over the assignment of each read is easy, but the posterior over $\vtheta$ that results, $p(\vtheta\mid R)\propto\Dir(\vtheta;\valpha)\prod_n\sum_m\theta_m p_{nm}$, is a product of $N$ sums. Expanding it gives a mixture of up to $M^N$ Dirichlet distributions, one per joint assignment of reads to isoforms, which cannot be computed. We consider two ways around this: point estimation of $\vtheta$ by EM, and approximation of the full posterior by variational inference.
 
 %======================================================================
 \section{EM for isoform abundance}
-\label{sec:em}
+\label{sec:em-10}
 %======================================================================
 
 EM was derived in Chapter 5 for mixture models and used in Chapter 6 for hidden Markov models. It maximizes a lower bound on the log marginal probability of the data by alternating two steps: the E step sets a distribution $q(\mZ)$ over the latent variables to their posterior given the current parameters, and the M step maximizes the expected log joint probability under $q$ over the parameters. Here the latent variables are the read assignments $\mZ$ and the parameter is $\vtheta$. Because we keep the Dirichlet prior, the M step maximizes the expected log \emph{posterior} and EM finds a maximum a posteriori (MAP) estimate of $\vtheta$; with $\valpha=\mathbf{1}$ the prior is flat and the estimate is the maximum likelihood estimate.
@@ -535,7 +535,7 @@ with
 Up to a constant this is the log density of $\Dir(\vtheta;\valpha')$, so the M step returns its mode. To derive the mode, maximize $\sum_m(\alpha'_m-1)\log\theta_m$ subject to $\sum_m\theta_m=1$ with a Lagrange multiplier $\lambda$. Setting the derivative of $\sum_m(\alpha'_m-1)\log\theta_m-\lambda(\sum_m\theta_m-1)$ with respect to $\theta_m$ to zero gives $(\alpha'_m-1)/\theta_m=\lambda$, so $\theta_m=(\alpha'_m-1)/\lambda$, and the constraint gives $\lambda=\sum_m(\alpha'_m-1)=\alpha_\cdot-M+N$, using $\sum_n\sum_m\phi_{nm}=N$. The M step is therefore
 \begin{equation}
   \theta_m^{\text{new}} = \frac{\alpha'_m-1}{\alpha'_\cdot-M} = \frac{\alpha_m-1+\sum_n\phi_{nm}}{N+\alpha_\cdot-M},
-  \label{eq:mstep}
+  \label{eq:mstep-10}
 \end{equation}
 which requires $\alpha'_m\geq 1$; for $\alpha_m<1$ the maximum can lie on the boundary $\theta_m=0$. With a flat prior, $\valpha=\mathbf{1}$, the update is $\theta_m^{\text{new}}=\frac{1}{N}\sum_n\phi_{nm}$.
 

@@ -20,3 +20,7 @@ Converting ML4FG lecture decks (`*.pptx`, untracked) into LaTeX chapters (`chapt
 - After regenerating figures, render them and check them visually. Check that each figure actually shows what its caption claims.
 - Third-party figures go in `figures/slides/`, credited in the caption and listed with a permission flag in the chapter README.
 - Build with `latexmk -pdf main.tex` in the chapter folder, then `latexmk -c`. Commit and push to origin (private repo `ml4fg_book`).
+
+## Building the book
+
+`book/build.sh` builds all chapters into `book/main.pdf` (per-chapter bibliographies). Labels must be unique across chapters. New chapter macros go in `\providecommand` at the chapter top; the book wraps each chapter in a group, so definitions stay local.

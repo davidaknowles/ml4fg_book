@@ -178,7 +178,7 @@ The simplest GWAS compares people who have a disease (\emph{cases}) with people 
 
 In practice each SNP is encoded as a \emph{dosage}, the number of copies of the alternative allele, $x\in\{0,1,2\}$: 0 for homozygous reference (AA, if A is the reference allele), 1 for heterozygous (AG) and 2 for homozygous alternative (GG). Some software counts the minor allele or the reference allele instead, which flips the sign of the effect, so the coding must be tracked when combining results.
 
-Let $N$ be the number of individuals and $P$ the number of SNPs. Let $\mX\in\{0,1,2\}^{N\times P}$ be the genotype matrix, with entry $x_{is}$ the dosage of individual $i$ at SNP $s$ and column $\mX_{:s}\in\R^N$. Let $\vy\in\R^N$ be the phenotype and $\vc_i\in\R^Q$ a vector of $Q$ covariates for individual $i$, such as age, sex and the top genotype principal components (Section~\ref{sec:popstruct}). For each SNP $s$ in turn we fit the regression
+Let $N$ be the number of individuals and $P$ the number of SNPs. Let $\mX\in\{0,1,2\}^{N\times P}$ be the genotype matrix, with entry $x_{is}$ the dosage of individual $i$ at SNP $s$ and column $\mX_{:s}\in\R^N$. Let $\vy\in\R^N$ be the phenotype and $\vc_i\in\R^Q$ a vector of $Q$ covariates for individual $i$, such as age, sex and the top genotype principal components (Section~\ref{sec:popstruct-11}). For each SNP $s$ in turn we fit the regression
 \begin{equation}
   y_i = \beta_s x_{is} + \vgamma^\top\vc_i + \epsilon_i, \qquad \epsilon_i\overset{\text{iid}}{\sim}\Normal(0,\sigma^2),
   \label{eq:gwas_snp}
@@ -372,13 +372,13 @@ and $\hat z_s^2$ follows approximately a non-central $\chi^2_1$ distribution wit
 
 \subsection{Polygenicity}
 
-One of the main findings of GWAS is that complex traits are highly \emph{polygenic}: they are affected by very many variants, each with a small effect. Before GWAS, many expected a typical disease to involve perhaps ten genes. The schizophrenia GWAS of the Psychiatric Genomics Consortium found 108 associated loci in 2014~\citep{ripke2014} and 287 in 2022 as the sample size grew~\citep{trubetskoy2022} (Figure~\ref{fig:scz}), and estimates of the total number of contributing variants are in the thousands. \citet{boyle2017} argued that gene regulatory networks are so densely connected that variants affecting the expression of almost any gene expressed in the relevant cell types will eventually have a small knock-on effect on the core genes of the trait. They called this the \emph{omnigenic} model.
+One of the main findings of GWAS is that complex traits are highly \emph{polygenic}: they are affected by very many variants, each with a small effect. Before GWAS, many expected a typical disease to involve perhaps ten genes. The schizophrenia GWAS of the Psychiatric Genomics Consortium found 108 associated loci in 2014~\citep{ripke2014} and 287 in 2022 as the sample size grew~\citep{trubetskoy2022} (Figure~\ref{fig:scz-11}), and estimates of the total number of contributing variants are in the thousands. \citet{boyle2017} argued that gene regulatory networks are so densely connected that variants affecting the expression of almost any gene expressed in the relevant cell types will eventually have a small knock-on effect on the core genes of the trait. They called this the \emph{omnigenic} model.
 
 \begin{figure}[!htbp]
   \centering
   \includegraphics[width=0.7\linewidth]{slides/scz_manhattan.png}
   \caption{Manhattan plot of a schizophrenia GWAS, with 287 genome-wide significant loci (index SNPs as green diamonds above the red line, $p=5\times10^{-8}$). Reproduced from \citet{trubetskoy2022}.}
-  \label{fig:scz}
+  \label{fig:scz-11}
 \end{figure}
 
 \subsection{Effect size and allele frequency}
@@ -409,7 +409,7 @@ The second factor is \emph{power}. Since detection requires $2f_s(1-f_s)\beta_s^
 
 %======================================================================
 \section{Population structure and relatedness}
-\label{sec:popstruct}
+\label{sec:popstruct-11}
 %======================================================================
 
 \subsection{Confounding by ancestry}
