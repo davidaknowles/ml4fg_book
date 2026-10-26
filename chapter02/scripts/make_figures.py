@@ -115,12 +115,12 @@ def fig_limitations():
          + labs(x="$x$", y="$y$") + THEME + theme(legend_position="top"))
     save(p, "limitations_nonlinear.pdf", 3.4, 3.2)
 
-    n = 300
-    X = rng.uniform(-3, 3, (n, 2))
-    yb = ((X[:, 0] - 1.3) ** 2 + (X[:, 1] - 1.3) ** 2 < 1.4 ** 2).astype(int)
-    lr = LogisticRegression().fit(X, yb)
-    nn = MLPClassifier(hidden_layer_sizes=(10, 10), max_iter=5000, random_state=0).fit(X, yb)
-    g = np.linspace(-3, 3, 250)
+    n = 60
+    X = rng.uniform(0, 3, (n, 2))
+    yb = (X[:, 0] * X[:, 1] > 1).astype(int)
+    lr = LogisticRegression(C=100).fit(X, yb)
+    nn = MLPClassifier(hidden_layer_sizes=(10, 10), activation="tanh", max_iter=20000, alpha=1e-3, random_state=0).fit(X, yb)
+    g = np.linspace(0, 3, 250)
     g1, g2 = np.meshgrid(g, g)
     G = np.c_[g1.ravel(), g2.ravel()]
     bounds = []
@@ -131,11 +131,11 @@ def fig_limitations():
     b = pd.concat(bounds)
     b["piece"] = b["fit"] + b["piece"]
     pts = pd.DataFrame({"x1": X[:, 0], "x2": X[:, 1], "cls": np.where(yb == 1, "$+$", "$-$")})
-    p = (ggplot() + geom_point(pts, aes("x1", "x2", shape="cls"), size=1.6, color="grey")
+    p = (ggplot() + geom_point(pts, aes("x1", "x2", shape="cls"), size=4, stroke=1, color="#555555")
          + geom_path(b, aes("x", "y", group="piece", color="fit"), size=0.9)
          + scale_shape_manual(values={"$+$": "+", "$-$": "_"}, guide=None)
          + scale_color_manual(values=[PAL[1], PAL[0]])
-         + coord_cartesian(xlim=(-3, 3), ylim=(-3, 3))
+         + coord_cartesian(xlim=(0, 3), ylim=(0, 3))
          + labs(x="$x_1$", y="$x_2$") + THEME + theme(legend_position="top"))
     save(p, "limitations_interaction.pdf", 3.4, 3.4)
 
