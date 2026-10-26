@@ -735,17 +735,85 @@ Using~\eqref{eq:lout}, the lengths are $12-5+1=8$, $\lfloor(8-2)/2\rfloor+1=4$ a
 
 \subsection{A worked example}
 
-To see how such a network can encode grammar, set its weights by hand. The input is the 13\,bp sequence \texttt{CGCATTACGATAA}, and the first convolution has three filters of width 6 with no padding, giving outputs of length 8. Filter 1 is the GATA PWM of Table~\ref{tab:pwm_scan}. Filter 2 detects the motif [C/G]ATTA[C/G], resembling the core of the motif of NANOG, another pluripotency TF, with weights $3.7$ for A at positions 2 and 5 and for T at positions 3 and 4, $-3.2$ for the other nucleotides at those positions, and weights between $-3.2$ and $2.0$ at the flanking positions 1 and 6 that favour C or G. Filter 3 has random weights centred on $-2$ and represents an unused filter. After the ReLU the three channels are
-\begin{align*}
-  \text{GATA:}\ & (0,\ 2.1,\ 0,\ 0,\ 0,\ 0,\ 0,\ 15.9),\\
-  \text{NANOG:}\ & (0,\ 0,\ 18.0,\ 0,\ 0,\ 0,\ 0,\ 1.8),\\
-  \text{filter 3:}\ & (0,\ 0,\ 0,\ 0,\ 0,\ 0,\ 0,\ 0).
-\end{align*}
-The NANOG-like site \texttt{CATTAC} starts at position 3 and the GATA site \texttt{CGATAA} at position 8. Max pooling with width 2 and stride 2 gives $(2.1,0,0,15.9)$ for GATA and $(0,18.0,0,1.8)$ for NANOG. The first filter of the second convolution has width 3, with weights $(-0.4,-0.2,0.7)$ on the GATA channel, $(0.6,-0.9,-1.2)$ on the NANOG channel and $(-1.1,-1.2,-1.0)$ on channel 3. Its positive weights pick out a NANOG site in the first pooled position of its window and a GATA site in the third, that is, a GATA site starting 3--5\,bp after the start of a NANOG site. At its second position, over pooled positions 2--4,
-\begin{equation*}
-  0.7\times15.9 + 0.6\times18.0 - 1.2\times1.8 = 19.77,
-\end{equation*}
-while at its first position the output is negative and the ReLU gives 0. The second filter of this layer has negative weights and outputs zeros. Flattening gives $(0,19.77,0,0)$. A dense layer with weight $0.3$ from the second element to its first hidden unit, and weights that give negative inputs to the other two hidden units, produces $(5.93,0,0)$ after the ReLU. The output weight $0.5$ on the first hidden unit gives the logit $2.97$ and $\Pr(\text{bound})=\sigma(2.97)=0.95$. If the GATA site were moved far from the NANOG site, the second-layer filter would not fire and the predicted probability would drop, even though both motifs are still present. In a trained network such weights are learned from data rather than set by hand.
+To see how such a network can encode grammar, we set its weights by hand and run it in PyTorch. Weights that play no role in the example are drawn at random, centred on $-2$, so that they output zeros after the ReLU. The input is the 13\,bp sequence \texttt{CGCATTACGATAA}, one-hot encoded as a tensor of shape (batch, nucleotides, length).
+\begin{lstlisting}[style=pycode]
+import torch
+import torch.nn.functional as F
+torch.manual_seed(0)
+torch.set_printoptions(precision=2)
+
+seq = "CGCATTACGATAA"
+base_to_row = {"A": 0, "C": 1, "G": 2, "T": 3}
+x = torch.zeros(1, 4, len(seq))  # batch x nucleotides x length
+for i, base in enumerate(seq):
+    x[0, base_to_row[base], i] = 1.0
+x
+\end{lstlisting}
+\begin{lstlisting}[style=pyout]
+tensor([[[0., 0., 0., 1., 0., 0., 1., 0., 0., 1., 0., 1., 1.],
+         [1., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+         [0., 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 1., 1., 0., 0., 0., 0., 1., 0., 0.]]])
+\end{lstlisting}
+The first convolution has three filters of width 6 with no padding, giving outputs of length $13-6+1=8$. Filter 1 is the GATA PWM of Table~\ref{tab:pwm_scan}. Filter 2 detects the motif [C/G]ATTA[C/G], resembling the core of the motif of NANOG, another pluripotency TF: weights $3.7$ for A at positions 2 and 5 and for T at positions 3 and 4, $-3.2$ for the other nucleotides at those positions, and weights that favour C or G at the flanking positions 1 and 6. Filter 3 keeps its random weights and represents an unused filter.
+\begin{lstlisting}[style=pycode]
+w1 = torch.randn(3, 4, 6) - 2.  # filters x nucleotides x width
+w1[0] = torch.tensor([  # GATA
+    [-5.7, -3.2,  3.7, -3.2,  3.7,  0.6],   # A
+    [ 0.5, -3.2, -3.2, -3.2, -3.2, -5.7],   # C
+    [ 0.5,  3.7, -3.2, -3.2, -3.2, -5.7],   # G
+    [-5.7, -3.2, -3.2,  3.7, -3.2,  0.5]])  # T
+w1[1] = torch.tensor([  # [C/G]ATTA[C/G], NANOG-like
+    [-3.2,  3.7, -3.2, -3.2,  3.7, -1.2],
+    [ 2.0, -3.2, -3.2, -3.2, -3.2,  1.2],
+    [ 1.5, -3.2, -3.2, -3.2, -3.2,  1.3],
+    [-3.2, -3.2,  3.7,  3.7, -3.2, -1.4]])
+x = F.relu(F.conv1d(x, w1))
+x
+\end{lstlisting}
+\begin{lstlisting}[style=pyout]
+tensor([[[ 0.00,  2.10,  0.00,  0.00,  0.00,  0.00,  0.00, 15.90],
+         [ 0.00,  0.00, 18.00,  0.00,  0.00,  0.00,  0.00,  1.80],
+         [ 0.00,  0.00,  0.00,  0.00,  0.00,  0.00,  0.00,  0.00]]])
+\end{lstlisting}
+The rows are the GATA, NANOG and unused channels. The NANOG-like site \texttt{CATTAC} starts at position 3 and the GATA site \texttt{CGATAA} at position 8. Max pooling with width 2 and stride 2 halves the length.
+\begin{lstlisting}[style=pycode]
+x = F.max_pool1d(x, kernel_size=2, stride=2)
+x
+\end{lstlisting}
+\begin{lstlisting}[style=pyout]
+tensor([[[ 2.10,  0.00,  0.00, 15.90],
+         [ 0.00, 18.00,  0.00,  1.80],
+         [ 0.00,  0.00,  0.00,  0.00]]])
+\end{lstlisting}
+The second convolution has two filters of width 3 over the three channels. The first filter's positive weights pick out a NANOG site in the first pooled position of its window and a GATA site in the third, that is, a GATA site starting 3--5\,bp after the start of a NANOG site. The second filter keeps its random weights.
+\begin{lstlisting}[style=pycode]
+w2 = torch.randn(2, 3, 3) - 2.  # filters x channels x width
+w2[0] = torch.tensor([[-0.4, -0.2,  0.7],   # GATA channel
+                      [ 0.6, -0.9, -1.2],   # NANOG channel
+                      [-1.1, -1.2, -1.0]])  # unused channel
+x = F.relu(F.conv1d(x, w2))
+x
+\end{lstlisting}
+\begin{lstlisting}[style=pyout]
+tensor([[[ 0.00, 19.77],
+         [ 0.00,  0.00]]])
+\end{lstlisting}
+At its second position, over pooled positions 2--4, the first filter gives $0.7\times15.9 + 0.6\times18.0 - 1.2\times1.8 = 19.77$; at its first position the output is negative and the ReLU gives 0. We flatten the result to a vector of length 4 and apply two dense layers. The first has three hidden units, with weight $0.3$ from the second element to the first hidden unit; the output layer has weight $0.5$ on the first hidden unit.
+\begin{lstlisting}[style=pycode]
+x = x.flatten()
+w3 = torch.randn(3, 4) - 2.  # hidden units x inputs
+w3[0, 1] = 0.3
+x = F.relu(w3 @ x)
+w4 = torch.randn(1, 3) - 2.  # output x hidden units
+w4[0, 0] = 0.5
+logit = w4 @ x
+x, logit, torch.sigmoid(logit)
+\end{lstlisting}
+\begin{lstlisting}[style=pyout]
+(tensor([5.93, 0.00, 0.00]), tensor([2.97]), tensor([0.95]))
+\end{lstlisting}
+The predicted probability that the sequence is bound is $\sigma(2.97)=0.95$. If the GATA site were moved far from the NANOG site, the second-layer filter would not fire and the predicted probability would drop, even though both motifs are still present. In a trained network such weights are learned from data rather than set by hand.
 
 \subsection{Multitask CNNs}
 

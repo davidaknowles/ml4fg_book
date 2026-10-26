@@ -53,6 +53,7 @@ Converting the ML4FG (machine learning for functional genomics) lecture slides i
 - `\protect` fragile commands such as `\overrightarrow` in captions; brace `\foreach` bodies that are macros expanding to `\draw`.
 - In bibtex, "and others" must be the last author or abbrvnat prints it as a name.
 - Generated tables must be complete `tabular` environments; `\input` of row fragments fails when a row starts with `\multicolumn`. Chapter 9 writes numbers quoted in the text to a macro file from its figure script, which keeps text and figures in sync.
+- Code shown in the text uses the `listings` styles `pycode` (code) and `pyout` (its printed output), defined in both `book/main.tex` and the chapter preamble. Outputs are pasted from a run of exactly the printed code, with a fixed seed where weights are random (chapter 2 worked CNN example).
 
 ## Reusable code
 

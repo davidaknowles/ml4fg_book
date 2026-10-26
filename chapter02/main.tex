@@ -15,6 +15,12 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{tikz}
+\usepackage{listings} % code and its output, e.g. the worked CNN example in chapter 2
+\lstdefinestyle{pycode}{language=Python, basicstyle=\ttfamily\footnotesize, keywordstyle=\color{blue!60!black},
+  commentstyle=\color{green!40!black}, stringstyle=\color{red!60!black}, columns=fullflexible, keepspaces,
+  upquote=true, frame=leftline, framerule=1pt, rulecolor=\color{gray!60}, xleftmargin=1em, aboveskip=0.8em, belowskip=0.2em}
+\lstdefinestyle{pyout}{basicstyle=\ttfamily\footnotesize\color{gray!40!black}, columns=fullflexible, keepspaces,
+  backgroundcolor=\color{gray!8}, xleftmargin=1em, aboveskip=0.2em, belowskip=0.8em}
 \usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,decorations.pathmorphing,shapes.geometric,fit}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{hyperref}
