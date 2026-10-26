@@ -880,12 +880,11 @@ where $\vp\in(0,1)^N$ collects the predicted probabilities. Each sample contribu
     \node[below=of p] (l) {$\ell=y\log p+(1-y)\log(1-p)$};
     \draw[->] (x) -- (g); \draw[->] (b) -- (g);
     \draw[->] (g) -- (p); \draw[->] (p) -- (l);
-    \draw[->, green!50!black, thick] ($(x.west)+(-1.2,0)$) -- ($(l.west)+(-0.3,0)$|-l) node[midway, left, align=center] {forward\\pass};
     \draw[->, red!70!black, dashed, thick] (l.east) to[out=10, in=-10] node[right] {$\frac{\partial\ell}{\partial p}=\frac{y}{p}-\frac{1-y}{1-p}$} (p.east);
     \draw[->, red!70!black, dashed, thick] (p.east) to[out=10, in=-10] node[right] {$\frac{\partial p}{\partial g}=p(1-p)$} (g.east);
     \draw[->, red!70!black, dashed, thick] (g.north east) to[out=30, in=-60] node[right] {$\frac{\partial g}{\partial\vb}=\vx_i$} (b.south);
   \end{tikzpicture}
-  \caption{Computational graph for the logistic regression log likelihood of one sample. The forward pass (green) computes $\ell$; the backward pass (red) multiplies local derivatives by the chain rule to obtain $\partial\ell/\partial\vb$.}
+  \caption{Computational graph for the logistic regression log likelihood of one sample. The forward pass (black arrows) computes $\ell$; the backward pass (red, dashed) multiplies local derivatives by the chain rule to obtain $\partial\ell/\partial\vb$.}
   \label{fig:compgraph}
 \end{figure}
 
