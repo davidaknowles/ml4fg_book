@@ -423,7 +423,8 @@ By analogy with language, motifs are words, and the rules by which they combine 
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.4\linewidth]{slides/sox2_oct4_motifs.jpg}
+  \includegraphics[height=0.27\linewidth]{slides/sox2_oct4_motifs_A.png}\hspace{1.5em}%
+  \includegraphics[height=0.27\linewidth]{slides/sox2_oct4_motifs_B.png}
   \caption{A heterotypic motif pair. (A) Adjacent SOX2 (HMG domain) and OCT4 (POU domain) binding sites in regulatory regions of five genes expressed in pluripotent stem cells. (B) Sequence logos of the motifs enriched in OCT4 and SOX2 ChIP-seq peaks, which both show the composite motif. Reproduced from \citet{rizzino2016}.}
   \label{fig:sox2oct4}
 \end{figure}
@@ -564,7 +565,7 @@ the sum of the elementwise product of $\mW$ with the $4\times K$ block of $\mX$ 
 
 \begin{table}[t]
   \centering
-  \caption{Scanning the GATA PWM (top, rows A, C, G, T; positions 1--6) along the one-hot encoded sequence \texttt{GCATTACCGATAA}, padded with two columns of zeros on the left and three on the right, so that score $z_j$ is for the window covering positions $j-2$ to $j+3$. ReLU sets negative scores to zero. Max pooling with width 4 and stride 4 keeps the largest score in each block of four, discarding the last position; applying ReLU after pooling gives the same result as before, 2.1, 0 and 15.9.}
+  \caption{Scanning the GATA PWM (top, rows A, C, G, T; positions 1--6) along the one-hot encoded sequence \texttt{GCATTACCGATAA}, padded with two columns of zeros on the left and three on the right, so that score $z_j$ is for the window covering positions $j-2$ to $j+3$. ReLU sets negative scores to zero. Max pooling with width 4 and stride 4 keeps the largest score (bold) in each window of four (rules), discarding the last position; applying ReLU after pooling gives the same result as before, 2.1, 0 and 15.9.}
   \label{tab:pwm_scan}
   \small
   \begin{tabular}{l*{6}{r}}

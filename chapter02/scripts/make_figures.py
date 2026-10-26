@@ -339,8 +339,12 @@ def table_pwm_scan():
     for n in range(4):
         rows.append(f"{NUC[n]} & " + " & ".join(str(int(v)) for v in X[n]) + " \\\\")
     rows.append("\\midrule")
-    rows.append("score $z_j$ & " + " & ".join(fmt(v, 1) for v in z) + " \\\\")
+    # bold the score each pooling window keeps; rules under the score rows mark the windows
+    kept = {4 * b + int(np.argmax(z[4 * b:4 * b + 4])) for b in range(3)}
+    rows.append("score $z_j$ & " + " & ".join(f"\\textbf{{{fmt(v, 1)}}}" if j in kept else fmt(v, 1)
+                                              for j, v in enumerate(z)) + " \\\\")
     rows.append("ReLU & " + " & ".join(fmt(v, 1) for v in relu(z)) + " \\\\")
+    rows.append("\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\\cmidrule(lr){10-13}")
     cells = []
     for b in range(3):
         cells.append(f"\\multicolumn{{4}}{{c}}{{{fmt(pooled[b], 1)}}}")

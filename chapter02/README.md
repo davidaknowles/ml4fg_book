@@ -24,6 +24,6 @@ Taken from the slides (`figures/slides/`):
 | File | Source | Permission needed for publication |
 |---|---|---|
 | `chipseq_igb.jpg` | Freese et al. 2016, Bioinformatics (Integrated Genome Browser) | yes (check licence; the article may be open access) |
-| `sox2_oct4_motifs.jpg` | Rizzino and Wuebben 2016, Biochim Biophys Acta (as credited on the slide) | yes |
+| `sox2_oct4_motifs.jpg` (cropped into `_A.png`, `_B.png` for side-by-side panels) | Rizzino and Wuebben 2016, Biochim Biophys Acta (as credited on the slide) | yes |
 
 Not carried over: title-slide image; embedded YouTube videos on transcription and ChIP-seq; the motif-grammar cartoons cropped from a Nature Reviews Genetics figure (`nrg3682-f2.jpg`, redrawn in TikZ); Wikipedia's PWM matrices and sequence logos (recomputed); the GATA-DNA structure image; the convolution animations of Dumoulin and Visin (redrawn in TikZ); the Amberg convolution animation (Wikipedia, CC BY-SA); the PyTorch notebook screenshots (reproduced as a worked example in the text); the 2023 deck's decision tree (DataCamp) and Gaussian process figures; the discussion-question slides (summarized in the text).
