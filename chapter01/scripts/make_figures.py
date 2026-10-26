@@ -189,8 +189,9 @@ def fig_cv_curve():
     p = (ggplot(df, aes("lam", "m")) + geom_ribbon(aes(ymin="lo", ymax="hi"), fill=PAL[0], alpha=0.2)
          + geom_line(color=PAL[0], size=0.8) + geom_point(color=PAL[0], size=1)
          + geom_vline(xintercept=lams[jbest], linetype="dashed", color="grey")
-         + annotate("text", x=lams[2], y=m.max(), label="overfitting\n(complex model)", ha="left", va="top", size=8)
-         + annotate("text", x=lams[-2], y=m.max(), label="underfitting\n(simple model)", ha="right", va="top", size=8)
+         + annotate("text", x=lams[2], y=df.hi[:jbest].max() + 0.5, label="overfitting\n(overly complex model)",
+                    ha="left", va="bottom", size=8)
+         + annotate("text", x=lams[-5], y=m.max(), label="underfitting\n(overly simple model)", ha="right", va="bottom", size=8)
          + annotate("text", x=lams[jbest], y=m.min(), label=" optimal $\\lambda$", ha="left", va="top", size=8)
          + scale_x_log10() + labs(x="regularization strength $\\lambda$", y="cross-validation MSE")
          + THEME)
