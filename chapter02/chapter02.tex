@@ -675,61 +675,61 @@ During backpropagation, the gradient of a pooled output passes only to the input
 
 \subsection{A CNN for transcription factor binding}
 
-A typical CNN for sequence alternates convolution, ReLU and max pooling a few times, then \emph{flattens} the final channels-by-positions array into a vector and passes it to a dense MLP whose output is the probability of binding. This design follows early successful image models such as LeNet~\citep{lecun1998} and AlexNet~\citep{krizhevsky2012}. Figure~\ref{fig:cnn} shows a small example on a 12\,bp input.
+A typical CNN for sequence alternates convolution, ReLU and max pooling a few times, then \emph{flattens} the final channels-by-positions array into a vector and passes it to a dense MLP whose output is the probability of binding. This design follows early successful image models such as LeNet~\citep{lecun1998} and AlexNet~\citep{krizhevsky2012}. Figure~\ref{fig:cnn} shows a small example on a 13\,bp input, the network of the worked example below.
 \begin{enumerate}
-  \item Input: one-hot sequence, $4\times12$.
-  \item Convolution 1: 3 filters of width 5, stride 1, no padding, then ReLU: $3\times8$. Each filter is a learned PWM.
+  \item Input: one-hot sequence, $4\times13$.
+  \item Convolution 1: 3 filters of width 6, stride 1, no padding, then ReLU: $3\times8$. Each filter is a learned PWM.
   \item Max pooling, width 2, stride 2: $3\times4$.
   \item Convolution 2: 2 filters of width 3 over the 3 channels, then ReLU: $2\times2$. Each filter detects a combination of first-layer motifs at particular relative positions, a piece of grammar.
   \item Flatten to a vector of length 4; dense layer to 3 hidden units with ReLU; dense layer to one output; logistic sigmoid gives $\Pr(\text{TF bound}\mid\mX)$.
 \end{enumerate}
-Using~\eqref{eq:lout}, the lengths are $12-5+1=8$, $\lfloor(8-2)/2\rfloor+1=4$ and $4-3+1=2$. The network has $3\cdot4\cdot5+3=63$ parameters in the first convolution, $2\cdot3\cdot3+2=20$ in the second, $4\cdot3+3=15$ in the first dense layer and $3+1=4$ in the output layer. The \emph{receptive field} of a unit is the stretch of input it depends on: 5\,bp for the first convolution, 6\,bp after pooling (two adjacent windows of 5), and $6+2\times2=10$\,bp for the second convolution, whose three inputs are pooled units spaced 2\,bp apart. Real models take inputs of hundreds to thousands of base pairs and use hundreds of filters in each layer, but the structure is the same.
+Using~\eqref{eq:lout}, the lengths are $13-6+1=8$, $\lfloor(8-2)/2\rfloor+1=4$ and $4-3+1=2$. The network has $3\cdot4\cdot6+3=75$ parameters in the first convolution, $2\cdot3\cdot3+2=20$ in the second, $4\cdot3+3=15$ in the first dense layer and $3+1=4$ in the output layer. The \emph{receptive field} of a unit is the stretch of input it depends on: 6\,bp for the first convolution, 7\,bp after pooling (two adjacent windows of 6), and $7+2\times2=11$\,bp for the second convolution, whose three inputs are pooled units spaced 2\,bp apart. Real models take inputs of hundreds to thousands of base pairs and use hundreds of filters in each layer, but the structure is the same.
 
 \begin{figure}[t]
   \centering
   \begin{tikzpicture}[>=Stealth, every node/.style={font=\footnotesize},
       sq/.style={draw, minimum size=0.24cm, inner sep=0pt}]
     \def\dx{0.62}
-    % input: 12 positions x 4 channels
-    \foreach \j/\b/\on in {1/G/2,2/C/3,3/A/4,4/T/1,5/T/1,6/A/4,7/C/3,8/C/3,9/G/2,10/A/4,11/T/1,12/A/4} {
+    % input: 13 positions x 4 channels, the sequence of the worked example
+    \foreach \j/\b/\on in {1/C/3,2/G/2,3/C/3,4/A/4,5/T/1,6/T/1,7/A/4,8/C/3,9/G/2,10/A/4,11/T/1,12/A/4,13/A/4} {
       \foreach \c in {1,...,4} \node[sq] (x\j\c) at ({\dx*\j}, {0.25*(\c-1)}) {};
       \node[sq, fill=black!60] at ({\dx*\j}, {0.25*(\on-1)}) {};
       \node[font=\ttfamily\small] at ({\dx*\j},-0.35) {\b};
     }
     % conv1: 8 positions x 3 channels, at y=1.9
     \foreach \j in {1,...,8} \foreach \c/\col in {1/orange!60,2/yellow!60,3/gray!40}
-      \node[sq, fill=\col] (a\j\c) at ({\dx*(\j+2)}, {1.6+0.25*(\c-1)}) {};
-    \draw[gray] (x14.north west) -- (a11.south west); \draw[gray] (x54.north east) -- (a11.south east);
+      \node[sq, fill=\col] (a\j\c) at ({\dx*(\j+2.5)}, {1.6+0.25*(\c-1)}) {};
+    \draw[gray] (x14.north west) -- (a11.south west); \draw[gray] (x64.north east) -- (a11.south east);
     % pool: 4 positions x 3 channels
     \foreach \j in {1,...,4} \foreach \c/\col in {1/orange!60,2/yellow!60,3/gray!40}
-      \node[sq, fill=\col] (m\j\c) at ({\dx*(2*\j+1.5)}, {2.9+0.25*(\c-1)}) {};
+      \node[sq, fill=\col] (m\j\c) at ({\dx*(2*\j+2)}, {2.9+0.25*(\c-1)}) {};
     \draw[gray] (a13.north west) -- (m11.south west); \draw[gray] (a23.north east) -- (m11.south east);
     % conv2: 2 positions x 2 channels
     \foreach \j in {1,2} \foreach \c/\col in {1/white,2/green!40}
-      \node[sq, fill=\col] (b\j\c) at ({\dx*(2*\j+3.5)}, {4.2+0.25*(\c-1)}) {};
+      \node[sq, fill=\col] (b\j\c) at ({\dx*(2*\j+4)}, {4.2+0.25*(\c-1)}) {};
     \draw[gray] (m13.north west) -- (b11.south west); \draw[gray] (m33.north east) -- (b11.south east);
     % flatten + dense
-    \foreach \k in {1,...,4} \node[draw, circle, minimum size=0.28cm, inner sep=0pt] (f\k) at ({\dx*(\k+4.0)}, 5.4) {};
-    \foreach \k in {1,...,3} \node[draw, circle, minimum size=0.28cm, inner sep=0pt] (d\k) at ({\dx*(\k+4.5)}, 6.4) {};
-    \node[draw, circle, minimum size=0.28cm, inner sep=0pt] (out) at ({\dx*6.5}, 7.4) {};
+    \foreach \k in {1,...,4} \node[draw, circle, minimum size=0.28cm, inner sep=0pt] (f\k) at ({\dx*(\k+4.5)}, 5.4) {};
+    \foreach \k in {1,...,3} \node[draw, circle, minimum size=0.28cm, inner sep=0pt] (d\k) at ({\dx*(\k+5)}, 6.4) {};
+    \node[draw, circle, minimum size=0.28cm, inner sep=0pt] (out) at ({\dx*7}, 7.4) {};
     \foreach \k/\src in {1/b11,2/b12,3/b21,4/b22} \draw[gray, dashed] (\src.north) -- (f\k.south);
     \foreach \k in {1,...,4} \foreach \l in {1,...,3} \draw[gray] (f\k) -- (d\l);
     \foreach \l in {1,...,3} \draw[gray] (d\l) -- (out);
     \node[above] at (out.north) {$\Pr(\text{TF bound}\mid\mX)$};
     % labels
     \begin{scope}[every node/.style={font=\footnotesize, align=left, anchor=west}]
-      \node at (8.2,0.4) {input: one-hot, $4\times12$};
-      \node at (8.2,1.85) {conv 1: 3 filters, width 5, ReLU: $3\times8$};
-      \node at (8.2,3.15) {max pool: width 2, stride 2: $3\times4$};
-      \node at (8.2,4.35) {conv 2: 2 filters, width 3, ReLU: $2\times2$};
-      \node at (8.2,5.4) {flatten: 4};
-      \node at (8.2,6.4) {dense, ReLU: 3};
-      \node at (8.2,7.4) {dense, sigmoid: 1};
+      \node at (8.7,0.4) {input: one-hot, $4\times13$};
+      \node at (8.7,1.85) {conv 1: 3 filters, width 6, ReLU: $3\times8$};
+      \node at (8.7,3.15) {max pool: width 2, stride 2: $3\times4$};
+      \node at (8.7,4.35) {conv 2: 2 filters, width 3, ReLU: $2\times2$};
+      \node at (8.7,5.4) {flatten: 4};
+      \node at (8.7,6.4) {dense, ReLU: 3};
+      \node at (8.7,7.4) {dense, sigmoid: 1};
     \end{scope}
     \node[align=center, font=\footnotesize] at (1.0,3.4) {motif\\detectors};
     \node[align=center, font=\footnotesize] at (1.6,5.0) {combinations of\\motifs (grammar)};
   \end{tikzpicture}
-  \caption{A small CNN for predicting transcription factor binding. Each column of squares is one position and each square one channel (input rows, top to bottom: A, C, G, T; filled squares mark the nucleotide present); colours in a layer are different filters, and the same filter (same colour) is applied at every position. Grey lines show the inputs to the first unit of each layer: 5 input positions for convolution 1, 2 positions for pooling and 3 pooled positions for convolution 2. Dashed lines show the flattening of the $2\times2$ output of convolution 2 into a vector.}
+  \caption{A small CNN for predicting transcription factor binding. Each column of squares is one position and each square one channel (input rows, top to bottom: A, C, G, T; filled squares mark the nucleotide present); colours in a layer are different filters, and the same filter (same colour) is applied at every position. Grey lines show the inputs to the first unit of each layer: 6 input positions for convolution 1, 2 positions for pooling and 3 pooled positions for convolution 2. Dashed lines show the flattening of the $2\times2$ output of convolution 2 into a vector.}
   \label{fig:cnn}
 \end{figure}
 
