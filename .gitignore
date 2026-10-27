@@ -13,10 +13,8 @@ __pycache__/
 *.synctex.gz
 chapter*/main.pdf
 
-# Lecture captions: raw files contain student names; stripped/ is intermediate
-captions/raw/
-captions/stripped/
-captions/clean/parts/
+# Lecture captions contain student speech; kept local only (purged from history)
+captions/
 book/main.pdf
 *.bcf
 *.run.xml

@@ -1,6 +1,6 @@
 # Pre-publication checklist
 
-Open items across all chapters, collected from the chapter READMEs, the `.bib` files and the chapter-writing reports. Tick items off as they are resolved. Chapter READMEs hold the full figure provenance tables; `captions/NOTES.md` lists reconstructions in the lecture transcripts.
+Open items across all chapters, collected from the chapter READMEs, the `.bib` files and the chapter-writing reports. Tick items off as they are resolved. Chapter READMEs hold the full figure provenance tables; `captions/NOTES.md` (local only, not in the repository) lists reconstructions in the lecture transcripts.
 
 Sections:
 1. Slide errors found (fix the slides too)
