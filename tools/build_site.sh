@@ -9,6 +9,7 @@ OUT="${1:-$ROOT/_site}"
 MODE="${2:-all}"
 AR5IV="https://cdn.jsdelivr.net/gh/dginev/ar5iv-css@0.8.4/css"
 mkdir -p "$OUT/pdf"
+OUT="$(cd "$OUT" && pwd)"  # absolute, since each chapter is built from inside its folder
 failed=()
 
 if [[ "$MODE" != "--html-only" ]]; then
