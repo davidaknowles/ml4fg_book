@@ -26,10 +26,13 @@ if [[ "$MODE" != "--pdf-only" ]]; then
   for dir in "$ROOT"/chapter??; do
     ch="$(basename "$dir")"
     (cd "$dir" && latexmlc --path="$ROOT/tools/latexml" --format=html5 \
-        --css="$AR5IV/ar5iv.min.css" --css="$AR5IV/ar5iv-fonts.min.css" \
+        --css="$AR5IV/ar5iv.min.css" --css="$AR5IV/ar5iv-fonts.min.css" --css="$ROOT/tools/latexml/ml4fg.css" \
         --log="$OUT/$ch/latexml.log" --dest="$OUT/$ch/index.html" main.tex > /dev/null 2>&1) \
       || failed+=("$ch html")
-    rm -f "$dir/LaTeXML.cache"
+    # link back to the landing page and to this chapter's PDF
+    CH="$ch" perl -pi -e 's|<div class="ltx_page_content">|$&<div class="ml4fg_home"><a href="../">&larr; All chapters</a> &middot; <a href="../pdf/$ENV{CH}.pdf">PDF</a></div>|' \
+      "$OUT/$ch/index.html"
+    rm -f "${OUT:?}/$ch/LaTeXML.cache"
   done
 fi
 
