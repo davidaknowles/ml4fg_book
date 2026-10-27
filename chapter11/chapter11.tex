@@ -107,8 +107,8 @@ In Mendel's flowers the A allele is \emph{dominant}: one copy is enough to make 
     \node[cell, fill=white] at (3.2,-1.0) {TT\\[-1pt]\footnotesize $1/4$};
     \node[above] at (2.4,1.55) {father's gamete (pollen)};
     \node[rotate=90, above] at (-0.85,-0.5) {mother's gamete};
-    \node[right, align=left] at (4.3,0.0) {\tikz\fill[violet!35] (0,0) rectangle (0.3,0.2); purple flower (AA, AT)};
-    \node[right, align=left] at (4.3,-0.6) {\tikz\draw (0,0) rectangle (0.3,0.2); white flower (TT)};
+    \node[right, align=left] at (4.3,0.0) {{\setlength{\fboxsep}{0pt}\colorbox{violet!35}{\rule{0pt}{0.2cm}\hspace{0.3cm}}} purple flower (AA, AT)};
+    \node[right, align=left] at (4.3,-0.6) {{\setlength{\fboxsep}{0pt}\fbox{\rule{0pt}{0.2cm}\hspace{0.3cm}}} white flower (TT)};
   \end{tikzpicture}
   \caption{A Punnett square for a cross between two heterozygous (AT) parents. Each gamete carries one allele, chosen at random, so each of the four combinations has probability $1/4$. With A dominant, three quarters of the offspring have the dominant (purple) phenotype.}
   \label{fig:punnett}

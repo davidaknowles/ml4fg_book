@@ -1012,14 +1012,14 @@ The short-read sequencing that made functional genomics a large field, mostly on
   \centering
   \begin{tikzpicture}[every node/.style={font=\small}]
     \tikzset{ex/.style={minimum width=0.5cm, minimum height=0.25cm, inner sep=0pt}}
-    \foreach \side/\xs/\title in {0/0/short reads, 1/6.6/long reads} {
+    \foreach \side/\xs/\panel in {0/0/short reads, 1/6.6/long reads} {
       \begin{scope}[xshift=\xs cm]
-        \node at (2.6,1.3) {\title};
+        \node at (2.6,1.3) {\panel};
         % three isoforms with exons at 0,1,2,3,4 (each 0.6 wide, spacing 1.1)
-        \foreach \y/\col/\exs in {0.6/blue!60/{0,1,2,4}, 0.1/orange!70/{0,2,3,4}, -0.4/violet!60/{0,1,3,4}} {
-          \draw[gray] (0,\y) -- (5.0,\y);
-          \foreach \e in \exs \fill[\col] (\e*1.1,\y-0.12) rectangle (\e*1.1+0.6,\y+0.12);
-        }
+        \foreach \y in {0.6, 0.1, -0.4} \draw[gray] (0,\y) -- (5.0,\y);
+        \foreach \e in {0,1,2,4} \fill[blue!60] (\e*1.1,0.48) rectangle (\e*1.1+0.6,0.72);
+        \foreach \e in {0,2,3,4} \fill[orange!70] (\e*1.1,-0.02) rectangle (\e*1.1+0.6,0.22);
+        \foreach \e in {0,1,3,4} \fill[violet!60] (\e*1.1,-0.52) rectangle (\e*1.1+0.6,-0.28);
       \end{scope}
     }
     % short reads
@@ -1028,10 +1028,12 @@ The short-read sequencing that made functional genomics a large field, mostly on
     \node[align=center, font=\footnotesize] at (2.6,-2.2) {which isoforms are present\\must be inferred};
     % long reads
     \begin{scope}[xshift=6.6cm]
-      \foreach \y/\col/\exs in {-1.0/blue!60/{0,1,2,4}, -1.3/orange!70/{0,2,3,4}, -1.6/violet!60/{1,3,4}} {
-        \foreach \e in \exs \draw[very thick, \col] (\e*1.1,\y) -- (\e*1.1+0.6,\y);
-        \draw[densely dotted, \col] (0,\y) -- (5.0,\y);
-      }
+      \foreach \e in {0,1,2,4} \draw[very thick, blue!60] (\e*1.1,-1.0) -- (\e*1.1+0.6,-1.0);
+      \foreach \e in {0,2,3,4} \draw[very thick, orange!70] (\e*1.1,-1.3) -- (\e*1.1+0.6,-1.3);
+      \foreach \e in {1,3,4} \draw[very thick, violet!60] (\e*1.1,-1.6) -- (\e*1.1+0.6,-1.6);
+      \draw[densely dotted, blue!60] (0,-1.0) -- (5.0,-1.0);
+      \draw[densely dotted, orange!70] (0,-1.3) -- (5.0,-1.3);
+      \draw[densely dotted, violet!60] (0,-1.6) -- (5.0,-1.6);
       \node[align=center, font=\footnotesize] at (2.6,-2.2) {each read spans most or all\\of one isoform};
     \end{scope}
   \end{tikzpicture}

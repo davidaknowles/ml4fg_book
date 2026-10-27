@@ -1,0 +1,12 @@
+# LaTeXML binding for etoc: the per-chapter contents list is a PDF feature;
+# the HTML build shows LaTeXML's navigation table of contents instead.
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+DefMacro('\localtableofcontents', '');
+DefMacro('\etocsettocstyle{}{}', '');
+DefMacro('\etocsetnexttocdepth{}', '');
+
+1;

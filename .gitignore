@@ -18,3 +18,8 @@ captions/
 book/main.pdf
 *.bcf
 *.run.xml
+
+# Website build output and local tool config
+_site/
+LaTeXML.cache
+.claude/

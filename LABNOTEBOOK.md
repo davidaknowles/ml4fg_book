@@ -55,6 +55,13 @@ Converting the ML4FG (machine learning for functional genomics) lecture slides i
 - Generated tables must be complete `tabular` environments; `\input` of row fragments fails when a row starts with `\multicolumn`. Chapter 9 writes numbers quoted in the text to a macro file from its figure script, which keeps text and figures in sync.
 - Code shown in the text uses the `listings` styles `pycode` (code) and `pyout` (its printed output), defined in both `book/main.tex` and the chapter preamble. Outputs are pasted from a run of exactly the printed code, with a fixed seed where weights are random (chapter 2 worked CNN example).
 
+## Website
+
+- `tools/build_site.sh` builds the GitHub Pages site: the book PDF, each chapter's PDF, each chapter's HTML and a landing page (`tools/make_index.py`). `.github/workflows/pages.yml` runs it on every push to `main` with Ubuntu's TeX Live and LaTeXML packages and deploys to Pages.
+- HTML is converted from each chapter's standalone `main.tex` by LaTeXML, as arXiv does for its HTML papers, and styled with the ar5iv CSS. Math becomes MathML, TikZ becomes SVG, PDF figures are rasterized by ImageMagick (the workflow lifts ImageMagick's PDF policy), and natbib citations link to the bibliography read from the chapter `.bib`.
+- LaTeXML has no etoc support; `tools/latexml/etoc.sty.ltxml` turns the per-chapter contents list into nothing in HTML. Bindings for any other unsupported package go in the same folder, so the `.tex` stays unchanged.
+- The lecture transcripts in `captions/` contain student speech, so they were purged from the git history (git filter-repo) before the repository was made public, and the folder is ignored.
+
 ## Reusable code
 
 - `chapter04/scripts/attribution.py`: attribution methods (ISM, gradients, DeepLIFT, integrated gradients).
