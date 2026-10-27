@@ -48,7 +48,7 @@ Chapter 1 developed linear models for predicting a response, such as drug sensit
 \label{sec:beyond_linear}
 %======================================================================
 
-Linear models have two limitations that matter in practice (Figure~\ref{fig:limitations}). The first is \emph{nonlinearity}. If the response depends on a feature through a curve, a straight line fits poorly however much data we have. The second, less obvious, limitation is the absence of \emph{interaction effects}. An interaction is present when the effect of one feature on the response depends on the value of another. In the classification example of Figure~\ref{fig:limitations}b a sample is positive when $x_1x_2>1$, so a large value of one feature makes a sample positive only if the other is not too small. The class boundary is a curve, and no single line separates the positives from the negatives.
+Linear models have two limitations that matter in practice (Figure~\ref{fig:limitations}). The first is \emph{nonlinearity}. If the response depends on a feature through a curve, a straight line fits poorly however much data we have. The second, less obvious, limitation is the absence of \emph{interaction effects}. An interaction is present when the effect of one feature on the response depends on the value of another. In the classification example of Figure~\ref{fig:limitations}b a sample is positive when $x_2>1.5+0.9\sin(3x_1)$: the value of $x_2$ needed to make a sample positive rises and falls with $x_1$, so the effect of $x_2$ depends on $x_1$. The class boundary is a wavy curve, and no single line separates the positives from the negatives.
 
 A classical fix is to add interaction terms to a linear model. With two features,
 \begin{equation}
@@ -66,7 +66,7 @@ where $\beta_{12}\in\R$ is the interaction coefficient, or, for classification, 
     \includegraphics[width=\linewidth]{limitations_interaction.pdf}
     \caption{}
   \end{subfigure}
-  \caption{Two limitations of linear models, on simulated data. (a) Nonlinearity: the least-squares line misses the curved relationship between $x$ and $y$, which a small neural network captures. (b) Interaction: samples are positive ($+$) when $x_1x_2>1$ and negative ($-$) otherwise. The logistic regression decision boundary ($p=0.5$) is a line and misclassifies samples on both sides of the curve; a neural network classifier's boundary follows the curve.}
+  \caption{Two limitations of linear models, on simulated data. (a) Nonlinearity: the least-squares line misses the curved relationship between $x$ and $y$, which a small neural network captures. (b) Interaction: samples are positive ($+$) when $x_2>1.5+0.9\sin(3x_1)$ and negative ($-$) otherwise. The logistic regression decision boundary ($p=0.5$) is a line and misclassifies many samples; a neural network classifier's boundary follows the curve.}
   \label{fig:limitations}
 \end{figure}
 

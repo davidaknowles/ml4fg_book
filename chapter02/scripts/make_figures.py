@@ -115,11 +115,11 @@ def fig_limitations():
          + labs(x="$x$", y="$y$") + THEME + theme(legend_position="top"))
     save(p, "limitations_nonlinear.pdf", 3.4, 3.2)
 
-    n = 60
+    n = 100
     X = rng.uniform(0, 3, (n, 2))
-    yb = (X[:, 0] * X[:, 1] > 1).astype(int)
+    yb = (X[:, 1] > 1.5 + 0.9 * np.sin(3 * X[:, 0])).astype(int)
     lr = LogisticRegression(C=100).fit(X, yb)
-    nn = MLPClassifier(hidden_layer_sizes=(10, 10), activation="tanh", max_iter=20000, alpha=1e-3, random_state=0).fit(X, yb)
+    nn = MLPClassifier(hidden_layer_sizes=(20, 20), activation="tanh", solver="lbfgs", max_iter=20000, alpha=1e-3, random_state=0).fit(X, yb)
     g = np.linspace(0, 3, 250)
     g1, g2 = np.meshgrid(g, g)
     G = np.c_[g1.ravel(), g2.ravel()]
