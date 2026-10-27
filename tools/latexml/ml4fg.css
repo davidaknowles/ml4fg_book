@@ -7,8 +7,8 @@
 .ltx_page_content { max-width: 50rem; margin: 0 auto; }
 
 /* figures shrink to fit; wide equations, tables and code scroll within their own box on phones */
-img.ltx_graphics, .ltx_figure svg, .ltx_picture { max-width: 100%; height: auto; }
-table.ltx_equation, table.ltx_equationgroup, .ltx_table, .ltx_tabular, .ltx_listing {
+img.ltx_graphics, object.ltx_graphics, .ltx_figure svg, .ltx_picture { max-width: 100%; height: auto; }
+table.ltx_equation, table.ltx_equationgroup, .ltx_table, .ltx_tabular, .ltx_listing, .ltx_float_algorithm {
   display: block; max-width: 100%; overflow-x: auto;
 }
 

@@ -25,7 +25,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             texlive-latex-extra texlive-pictures texlive-science texlive-bibtex-extra \
             texlive-fonts-recommended lmodern biber latexmk \
-            latexml libimage-magick-perl imagemagick ghostscript
+            latexml libimage-magick-perl imagemagick ghostscript poppler-utils
           # LaTeXML converts PDF figures with ImageMagick, whose default policy blocks PDF
           sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml
       - name: Build PDFs and HTML

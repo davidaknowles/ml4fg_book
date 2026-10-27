@@ -16,6 +16,9 @@
 \usepackage{algpseudocode}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,decorations.pathmorphing,shapes.geometric,fit}
+% HTML build only: tools/build_site.sh creates tikz-external.flag so that TeX also writes each
+% tikzpicture to tikzext/main-figureN.pdf (TikZ external library); LaTeXML then shows those as images.
+\IfFileExists{tikz-external.flag}{\usetikzlibrary{external}\tikzexternalize[prefix=tikzext/]}{}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}

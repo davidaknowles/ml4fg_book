@@ -25,6 +25,16 @@ fi
 if [[ "$MODE" != "--pdf-only" ]]; then
   for dir in "$ROOT"/chapter??; do
     ch="$(basename "$dir")"
+    # TeX renders each tikzpicture to tikzext/main-figureN.pdf (TikZ external library, switched on by
+    # the flag file in main.tex); these become SVGs drawn at 125% so their labels match the web text size.
+    # tools/latexml/tikz.sty.ltxml puts them in place of the pictures.
+    (cd "$dir" && mkdir -p tikzext && touch tikz-external.flag \
+      && pdflatex -shell-escape -interaction=nonstopmode main.tex > /dev/null 2>&1; rm -f "${dir:?}/tikz-external.flag")
+    for pdf in "$dir"/tikzext/main-figure*.pdf; do
+      [[ -e "$pdf" ]] || continue
+      pdftocairo -svg "$pdf" "${pdf%.pdf}.svg" \
+        && perl -pi -e 's/(width|height)="([\d.]+)pt"/sprintf(q{%s="%.3fpt"}, $1, 1.25 * $2)/ge if /^<svg /' "${pdf%.pdf}.svg"
+    done
     (cd "$dir" && latexmlc --path="$ROOT/tools/latexml" --format=html5 \
         --css="$AR5IV/ar5iv.min.css" --css="$AR5IV/ar5iv-fonts.min.css" --css="$ROOT/tools/latexml/ml4fg.css" \
         --log="$OUT/$ch/latexml.log" --dest="$OUT/$ch/index.html" main.tex > /dev/null 2>&1) \

@@ -1,0 +1,25 @@
+# LaTeXML binding for tikz, used by the HTML build instead of LaTeXML's own TikZ support.
+# tools/build_site.sh has TeX render each tikzpicture to tikzext/main-figureN.pdf (TikZ external
+# library, numbered from 0 in document order) and converts these to SVG. Here the Nth tikzpicture
+# is replaced by that SVG, so the HTML figures match the PDF exactly.
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+RequirePackage('graphicx');
+RequirePackage('xcolor');
+
+DefMacro('\usetikzlibrary{}', '');
+DefMacro('\tikzset{}',        '');
+
+# Skip the picture's source: it ends at a line holding only \end{tikzpicture}.
+DefMacroI(T_CS('\begin{tikzpicture}'), undef, sub {
+    my ($gullet) = @_;
+    my $line;
+    while (defined($line = $gullet->readRawLine) && ($line !~ /^\s*\\end\{tikzpicture\}\s*$/)) { }
+    my $n = LookupValue('ml4fg_tikz_count') || 0;
+    AssignValue(ml4fg_tikz_count => $n + 1, 'global');
+    return Tokenize("\\includegraphics{tikzext/main-figure$n.svg}"); });
+
+1;

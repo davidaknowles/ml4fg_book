@@ -23,3 +23,7 @@ book/main.pdf
 _site/
 LaTeXML.cache
 .claude/
+# TikZ pictures rendered for the HTML build
+chapter*/tikzext/
+tikz-external.flag
+*.auxlock
