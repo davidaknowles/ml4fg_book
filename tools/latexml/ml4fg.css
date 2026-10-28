@@ -8,6 +8,8 @@
 
 /* figures shrink to fit; wide equations, tables and code scroll within their own box on phones */
 img.ltx_graphics, object.ltx_graphics, .ltx_figure svg, .ltx_picture { max-width: 100%; height: auto; }
+/* TeX-rendered TikZ figures, inlined by tools/inline_svgs.py */
+svg.ml4fg_tikz { display: block; margin: 0 auto; }
 table.ltx_equation, table.ltx_equationgroup, .ltx_table, .ltx_tabular, .ltx_listing, .ltx_float_algorithm {
   display: block; max-width: 100%; overflow-x: auto;
 }
