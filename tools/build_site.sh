@@ -1,4 +1,3 @@
-    python3 "$ROOT/tools/add_toc.py" "$OUT/$ch" > /dev/null || failed+=("$ch contents")
 #!/usr/bin/env bash
 # Build the website: the book PDF, a PDF and an HTML page per chapter, and a landing page.
 # The LaTeX sources are the only input; HTML is converted from each chapter's standalone main.tex by LaTeXML.
