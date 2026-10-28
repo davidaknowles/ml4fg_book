@@ -14,6 +14,10 @@ table.ltx_equation, table.ltx_equationgroup, .ltx_table, .ltx_tabular, .ltx_list
   display: block; max-width: 100%; overflow-x: auto;
 }
 
+/* displayed equations (including align cells, whose maths LaTeXML marks inline) 20% larger than the text;
+   equation numbers sit outside the maths and keep the text size */
+.ltx_eqn_table math { font-size: 120%; }
+
 /* algorithms: centred at their natural width, and at body text size as in the PDF
    (ar5iv sets every listing line to 0.7rem, which suits code but not pseudocode) */
 figure.ltx_float.ltx_float_algorithm {
