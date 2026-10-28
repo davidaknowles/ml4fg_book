@@ -10,9 +10,16 @@
 img.ltx_graphics, object.ltx_graphics, .ltx_figure svg, .ltx_picture { max-width: 100%; height: auto; }
 /* TeX-rendered TikZ figures, inlined by tools/inline_svgs.py */
 svg.ml4fg_tikz { display: block; margin: 0 auto; }
-table.ltx_equation, table.ltx_equationgroup, .ltx_table, .ltx_tabular, .ltx_listing, .ltx_float_algorithm {
+table.ltx_equation, table.ltx_equationgroup, .ltx_table, .ltx_tabular, .ltx_listing {
   display: block; max-width: 100%; overflow-x: auto;
 }
+
+/* algorithms: centred at their natural width, and at body text size as in the PDF
+   (ar5iv sets every listing line to 0.7rem, which suits code but not pseudocode) */
+figure.ltx_float.ltx_float_algorithm {
+  display: block; width: fit-content; max-width: 100%; overflow-x: auto; margin-left: auto; margin-right: auto;
+}
+.ltx_float_algorithm .ltx_listing .ltx_listingline { font-size: inherit; }
 
 /* link back to the book's contents, added by tools/build_site.sh */
 .ml4fg_home { font-family: sans-serif; font-size: 0.9rem; margin: 1rem 0; }
