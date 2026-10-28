@@ -1,3 +1,4 @@
+    python3 "$ROOT/tools/add_toc.py" "$OUT/$ch" > /dev/null || failed+=("$ch contents")
 #!/usr/bin/env bash
 # Build the website: the book PDF, a PDF and an HTML page per chapter, and a landing page.
 # The LaTeX sources are the only input; HTML is converted from each chapter's standalone main.tex by LaTeXML.
@@ -45,6 +46,8 @@ if [[ "$MODE" != "--pdf-only" ]]; then
       "$OUT/$ch/index.html"
     # TikZ SVGs go straight into the page, which browsers draw more smoothly than an embedded <object>
     python3 "$ROOT/tools/inline_svgs.py" "$OUT/$ch" > /dev/null || failed+=("$ch inline svg")
+    # contents list: a sidebar on wide screens, a collapsed box on narrow ones
+    python3 "$ROOT/tools/add_toc.py" "$OUT/$ch" > /dev/null || failed+=("$ch contents")
     rm -f "${OUT:?}/$ch/LaTeXML.cache"
   done
 fi
